@@ -1,0 +1,44 @@
+==========================================
+  O QUE E O NEON? POR QUE PRECISO?
+==========================================
+
+O projeto usa PostgreSQL como banco de dados.
+Voce tem MySQL instalado, mas o codigo foi
+escrito para PostgreSQL (sao sistemas diferentes).
+
+O NEON e um PostgreSQL GRATUITO na nuvem.
+Voce nao precisa instalar nada, nao precisa cartao.
+
+OPCAO 1 - NEON (recomendado, 1 minuto):
+-----------------------------------------
+1. Va para a aba "Sign Up" no Chrome (console.neon.tech)
+2. Clique em "Google" (entra com o Gmail)
+3. Crie um projeto: agent-one
+4. Copie a "Connection string" (postgresql://...)
+5. Cole no chat do Claude
+
+OPCAO 2 - PostgreSQL local:
+-----------------------------------------
+1. Baixe em: postgresql.org/download/windows
+2. Instale (next, next, defina uma senha)
+3. DATABASE_URL=postgresql://postgres:SENHA@localhost:5432/postgres
+
+==========================================
+  STATUS ATUAL DO PROJETO
+==========================================
+
+OK  - Codigo completo (10 sprints)
+OK  - npm install (475 + 401 pacotes)
+OK  - ANTHROPIC_API_KEY configurada
+OK  - JWT_SECRET gerado
+FALTA - DATABASE_URL (PostgreSQL)
+
+Apos ter o DATABASE_URL, eu:
+  → Atualizo o backend/.env
+  → Rodo as migrations (cria as tabelas)
+  → Rodo o seed (cria usuario admin)
+  → Inicio o servidor
+  → Acesse: http://localhost:3000
+  → Login: admin@loja.com / Admin@2025
+
+==========================================

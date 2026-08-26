@@ -1,0 +1,39 @@
+# Dependências
+node_modules/
+.npm
+
+# Variáveis de ambiente (NUNCA commitar)
+.env
+.env.local
+.env.production
+backend/.env
+frontend/.env
+frontend/.env.local
+
+# Next.js
+.next/
+out/
+frontend/.next/
+frontend/out/
+
+# Logs
+*.log
+backend_log.txt
+frontend_log.txt
+migrate_log.txt
+
+# Build
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Railway / Vercel
+.vercel/

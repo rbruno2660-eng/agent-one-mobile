@@ -1,0 +1,35 @@
+======================================
+  PROXIMO PASSO - SUBIR PARA GITHUB
+======================================
+
+O repositorio GitHub ja foi criado:
+https://github.com/rbruno2660-eng/agent-one-mobile
+
+AGORA FACA ISSO:
+
+  Duplo clique em: GIT_SUBIR.bat
+  (esta nesta mesma pasta agent-one-mobile)
+
+O bat vai:
+  1. Reinicializar o git corretamente
+  2. Adicionar todos os arquivos
+  3. Fazer o commit
+  4. Enviar para o GitHub
+
+Se aparecer janela de login do GitHub:
+  → Faca login normalmente
+  → O Windows vai salvar a senha automaticamente
+
+Depois que terminar, me avise!
+Proximos passos: configurar Railway e Vercel.
+
+======================================
+  STATUS DO APP
+======================================
+
+  Backend:  http://localhost:3001  OK
+  Frontend: http://localhost:3000  OK
+  Login:    admin@loja.com / Admin@2025
+  GitHub:   https://github.com/rbruno2660-eng/agent-one-mobile
+
+======================================
