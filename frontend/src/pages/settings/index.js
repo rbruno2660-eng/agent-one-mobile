@@ -33,11 +33,20 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    // Load agent config
-    api.get('/users/agent-config').catch(() => null).then(r => {
-      if (r?.data) { setAgent(r.data); setAgentForm(r.data); }
-    });
-    // Actually load from agents table via a dedicated endpoint (not implemented yet — placeholder)
+    api.get('/agents').then(r => {
+      if (r?.data) {
+        const d = r.data;
+        const merged = {
+          name: d.name || '',
+          persona: d.persona || '',
+          mission: d.settings?.mission || '',
+          handoff_criteria: d.settings?.handoff_criteria || '',
+          _id: d.id,
+        };
+        setAgent(merged);
+        setAgentForm(merged);
+      }
+    }).catch(() => null);
   }, []);
 
   useEffect(() => {
@@ -49,9 +58,21 @@ export default function SettingsPage() {
   async function saveAgent(e) {
     e.preventDefault();
     setSaving(true);
-    // PATCH /agents/:id when we have the agent ID
-    toast.success('Configurações salvas — requer endpoint /agents/:id (Sprint 9)');
-    setSaving(false);
+    try {
+      await api.patch('/agents', {
+        name: agentForm.name,
+        persona: agentForm.persona,
+        settings: {
+          mission: agentForm.mission,
+          handoff_criteria: agentForm.handoff_criteria,
+        },
+      });
+      toast.success('Configurações do agente salvas!');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Erro ao salvar configurações');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function createUser(e) {
