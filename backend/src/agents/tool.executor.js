@@ -83,56 +83,90 @@ async function executeTool(toolName, input, context) {
 
       case 'get_trade_base_value': {
         const result = await query(
-          `SELECT model, storage, base_value FROM trade_rules
+          `SELECT model, storage, base_value, min_value, max_value FROM trade_rules
            WHERE tenant_id = $1 AND active = true
              AND model ILIKE $2
              ${input.storage ? 'AND (storage ILIKE $3 OR storage IS NULL)' : ''}
            ORDER BY storage NULLS LAST LIMIT 5`,
           input.storage ? [tenantId, `%${input.model}%`, `%${input.storage}%`] : [tenantId, `%${input.model}%`]
         );
-        output = result.rows.length > 0
-          ? { found: true, rules: result.rows }
-          : { found: false, message: 'Modelo não encontrado na tabela de trocas. Um atendente humano fará a avaliação.' };
+        if (result.rows.length === 0) {
+          output = { found: false, message: 'Modelo não encontrado na tabela de trocas. Um atendente humano fará a avaliação.' };
+        } else {
+          const row = result.rows[0];
+          const minV = parseFloat(row.min_value || row.base_value || 0);
+          const maxV = parseFloat(row.max_value || row.base_value || 0);
+          output = {
+            found: true,
+            model: row.model,
+            min_value: minV,
+            max_value: maxV,
+            message: minV === 0 && maxV === 0
+              ? 'Este modelo não tem valor de troca cadastrado — avaliação presencial necessária.'
+              : `Valor de troca: R$ ${minV.toLocaleString('pt-BR')} a R$ ${maxV.toLocaleString('pt-BR')} (sujeito a descontos conforme estado do aparelho).`,
+          };
+        }
         break;
       }
 
       case 'calculate_trade_deductions': {
-        // Busca regras de desconto do tenant
-        const deductionRules = await query(
-          `SELECT type, condition, label, amount
-           FROM trade_deduction_rules WHERE tenant_id = $1 AND active = true`,
-          [tenantId]
-        );
-
+        // Busca descontos por aparelho (tabela nova) ou regras genéricas como fallback
+        const model = input.model || input.tenant_id; // tenant_id era usado erroneamente no campo model antes
         const deductions = [];
-        const rules = deductionRules.rows;
 
-        // Bateria
-        if (input.battery_health < 80) {
-          const rule = rules.find(r => r.type === 'battery' && r.condition === 'below_80');
-          if (rule) deductions.push({ type: 'battery', label: rule.label, amount: parseFloat(rule.amount) });
-        }
-        if (input.battery_health < 70) {
-          const rule = rules.find(r => r.type === 'battery' && r.condition === 'below_70');
-          if (rule) deductions.push({ type: 'battery', label: rule.label, amount: parseFloat(rule.amount) });
+        if (model && model !== tenantId) {
+          // Busca descontos específicos do modelo
+          const deviceDeds = await query(
+            `SELECT item, amount FROM trade_device_deductions
+             WHERE tenant_id = $1 AND model ILIKE $2 AND active = true`,
+            [tenantId, `%${model}%`]
+          );
+
+          // Mapeia os defeitos informados para os itens da tabela
+          const defectMap = [];
+          if (input.screen_condition && input.screen_condition !== 'perfect') {
+            defectMap.push('Tela');
+          }
+          if (input.battery_health !== undefined && input.battery_health < 80) {
+            defectMap.push('Bateria');
+          }
+          if (input.back_condition && input.back_condition !== 'perfect') {
+            defectMap.push('Vidro traseiro');
+          }
+          if (input.body_condition && input.body_condition !== 'perfect') {
+            defectMap.push('Carcaça');
+          }
+
+          for (const ded of deviceDeds.rows) {
+            if (defectMap.some(d => ded.item.toLowerCase().includes(d.toLowerCase()) || d.toLowerCase().includes(ded.item.toLowerCase()))) {
+              deductions.push({ type: ded.item, label: ded.item, amount: parseFloat(ded.amount) });
+            }
+          }
         }
 
-        // Tela
-        if (input.screen_condition !== 'perfect') {
-          const rule = rules.find(r => r.type === 'screen' && r.condition === input.screen_condition);
-          if (rule) deductions.push({ type: 'screen', label: rule.label, amount: parseFloat(rule.amount) });
-        }
-
-        // Traseira
-        if (input.back_condition && input.back_condition !== 'perfect') {
-          const rule = rules.find(r => r.type === 'back' && r.condition === input.back_condition);
-          if (rule) deductions.push({ type: 'back', label: rule.label, amount: parseFloat(rule.amount) });
-        }
-
-        // Carcaça
-        if (input.body_condition && input.body_condition !== 'perfect') {
-          const rule = rules.find(r => r.type === 'body' && r.condition === input.body_condition);
-          if (rule) deductions.push({ type: 'body', label: rule.label, amount: parseFloat(rule.amount) });
+        // Fallback: regras genéricas (legado)
+        if (deductions.length === 0) {
+          const deductionRules = await query(
+            `SELECT type, condition, label, amount FROM trade_deduction_rules WHERE tenant_id = $1 AND active = true`,
+            [tenantId]
+          );
+          const rules = deductionRules.rows;
+          if (input.battery_health < 80) {
+            const rule = rules.find(r => r.type === 'battery' && r.condition === 'below_80');
+            if (rule) deductions.push({ type: 'battery', label: rule.label, amount: parseFloat(rule.amount) });
+          }
+          if (input.screen_condition !== 'perfect') {
+            const rule = rules.find(r => r.type === 'screen' && r.condition === input.screen_condition);
+            if (rule) deductions.push({ type: 'screen', label: rule.label, amount: parseFloat(rule.amount) });
+          }
+          if (input.back_condition && input.back_condition !== 'perfect') {
+            const rule = rules.find(r => r.type === 'back' && r.condition === input.back_condition);
+            if (rule) deductions.push({ type: 'back', label: rule.label, amount: parseFloat(rule.amount) });
+          }
+          if (input.body_condition && input.body_condition !== 'perfect') {
+            const rule = rules.find(r => r.type === 'body' && r.condition === input.body_condition);
+            if (rule) deductions.push({ type: 'body', label: rule.label, amount: parseFloat(rule.amount) });
+          }
         }
 
         const totalDeductions = deductions.reduce((sum, d) => sum + d.amount, 0);

@@ -83,17 +83,17 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: 'calculate_trade_deductions',
-    description: 'Calcula os descontos de troca baseado no estado do aparelho (bateria, tela, traseira, carcaça). Use após get_trade_base_value.',
+    description: 'Calcula os descontos de troca baseado no modelo e no estado do aparelho. Use após get_trade_base_value, passando o modelo exato retornado.',
     input_schema: {
       type: 'object',
       properties: {
-        tenant_id: { type: 'string' },
+        model: { type: 'string', description: 'Modelo exato do aparelho (ex: iPhone 14 Pro)' },
         battery_health: { type: 'number', description: 'Percentual de saúde da bateria (0-100)' },
         screen_condition: { type: 'string', enum: ['perfect', 'scratched', 'cracked', 'replaced'], description: 'Estado da tela' },
         back_condition: { type: 'string', enum: ['perfect', 'cracked'], description: 'Estado da traseira' },
         body_condition: { type: 'string', enum: ['perfect', 'damaged'], description: 'Estado da carcaça' },
       },
-      required: ['battery_health', 'screen_condition'],
+      required: ['model', 'battery_health', 'screen_condition'],
     },
   },
   {

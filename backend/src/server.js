@@ -9,6 +9,17 @@ const PORT = process.env.PORT || 3001;
 async function runMigrations() {
   const migrations = [
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT`,
+    `ALTER TABLE trade_rules ADD COLUMN IF NOT EXISTS min_value NUMERIC(12,2)`,
+    `ALTER TABLE trade_rules ADD COLUMN IF NOT EXISTS max_value NUMERIC(12,2)`,
+    `CREATE TABLE IF NOT EXISTS trade_device_deductions (
+      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      model TEXT NOT NULL,
+      item TEXT NOT NULL,
+      amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+      active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
   ];
   for (const sql of migrations) {
     try { await query(sql); } catch (err) { console.warn('Migration skipped:', err.message); }

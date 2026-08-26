@@ -218,4 +218,53 @@ router.patch('/evaluations/:id', requireRole('manager'), async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────
+// IMPORTAÇÃO BULK DE REGRAS DE TROCA
+// ─────────────────────────────────────────────
+
+// POST /trades/import
+// Body: { rules: [{ model, min_value, max_value, deductions: [{item, amount}] }] }
+router.post('/import', requireRole('manager'), async (req, res) => {
+  const { rules } = req.body;
+  if (!Array.isArray(rules) || rules.length === 0) {
+    return res.status(400).json({ error: 'Lista de regras inválida' });
+  }
+
+  let inserted = 0;
+  let skipped = 0;
+
+  for (const rule of rules) {
+    try {
+      // Upsert trade_rules (por model + tenant)
+      await query(
+        `INSERT INTO trade_rules (tenant_id, model, base_value, min_value, max_value)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT DO NOTHING`,
+        [req.tenantId, rule.model, rule.max_value || 0, rule.min_value || 0, rule.max_value || 0]
+      );
+
+      // Remove deduções antigas deste modelo e insere as novas
+      if (rule.deductions && rule.deductions.length > 0) {
+        await query(
+          `DELETE FROM trade_device_deductions WHERE tenant_id = $1 AND model = $2`,
+          [req.tenantId, rule.model]
+        );
+        for (const ded of rule.deductions) {
+          await query(
+            `INSERT INTO trade_device_deductions (tenant_id, model, item, amount)
+             VALUES ($1, $2, $3, $4)`,
+            [req.tenantId, rule.model, ded.item, ded.amount]
+          );
+        }
+      }
+      inserted++;
+    } catch (err) {
+      console.warn('trade import skip:', rule.model, err.message);
+      skipped++;
+    }
+  }
+
+  res.json({ ok: true, inserted, skipped });
+});
+
 module.exports = router;
