@@ -12,7 +12,7 @@ router.use(authMiddleware, requireRole('manager'));
 router.get('/', async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, name, email, role, status, last_login, created_at
+      `SELECT id, name, email, phone, role, status, last_login, created_at
        FROM users WHERE tenant_id = $1 ORDER BY name`,
       [req.tenantId]
     );
@@ -30,6 +30,7 @@ router.post('/', requireRole('admin'), async (req, res) => {
       email: z.string().email(),
       password: z.string().min(8),
       role: z.enum(['admin','manager','seller','service','viewer']),
+      phone: z.string().optional().nullable(),
     });
     const data = schema.parse(req.body);
 
@@ -38,10 +39,10 @@ router.post('/', requireRole('admin'), async (req, res) => {
 
     const hash = await bcrypt.hash(data.password, 12);
     const result = await query(
-      `INSERT INTO users (tenant_id, name, email, password, role)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, name, email, role, status, created_at`,
-      [req.tenantId, data.name, data.email.toLowerCase().trim(), hash, data.role]
+      `INSERT INTO users (tenant_id, name, email, password, role, phone)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, name, email, phone, role, status, created_at`,
+      [req.tenantId, data.name, data.email.toLowerCase().trim(), hash, data.role, data.phone || null]
     );
 
     res.status(201).json(result.rows[0]);

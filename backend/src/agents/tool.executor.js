@@ -1,6 +1,7 @@
 const { query } = require('../db/pool');
 const productService = require('../services/product.service');
 const conversationService = require('../services/conversation.service');
+const whatsappService = require('../services/whatsapp.service');
 
 /**
  * Executa uma tool chamada pelo agente.
@@ -189,6 +190,42 @@ async function executeTool(toolName, input, context) {
           [conversationId, tenantId, input.reason, input.summary]
         );
         await conversationService.updateConversationStatus(conversationId, 'human_requested');
+
+        // Notifica membros da equipe com WhatsApp cadastrado
+        try {
+          const channelResult = await query(
+            `SELECT phone_id FROM channels WHERE tenant_id = $1 AND status = 'active' LIMIT 1`,
+            [tenantId]
+          );
+          const phoneId = channelResult.rows[0]?.phone_id;
+
+          if (phoneId) {
+            const teamResult = await query(
+              `SELECT name, phone FROM users
+               WHERE tenant_id = $1 AND status = 'active'
+                 AND phone IS NOT NULL AND phone != ''
+                 AND role IN ('owner','admin','manager')`,
+              [tenantId]
+            );
+
+            const reasonLabels = {
+              customer_requested: 'Cliente solicitou atendente',
+              commercial_exception: 'Exceção comercial',
+              trade_physical_inspection: 'Avaliação física de troca',
+              sale_closure: 'Fechamento de venda',
+              complaint: 'Reclamação',
+              missing_information: 'Informação não disponível',
+              high_intent: 'Cliente com alta intenção de compra',
+            };
+
+            const notification = `🔔 *Atendimento solicitado*\n\n*Motivo:* ${reasonLabels[input.reason] || input.reason}\n\n*Contexto:* ${input.summary}\n\nAcesse a plataforma para assumir o atendimento.`;
+
+            for (const member of teamResult.rows) {
+              whatsappService.sendText(phoneId, member.phone, notification).catch(() => {});
+            }
+          }
+        } catch { /* notificação não deve quebrar o handoff */ }
+
         output = { ok: true, message: 'Atendente humano acionado' };
         break;
       }
