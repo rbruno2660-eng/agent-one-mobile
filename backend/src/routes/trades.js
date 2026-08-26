@@ -54,10 +54,12 @@ router.patch('/rules/:id', requireRole('manager'), async (req, res) => {
     const before = await query(`SELECT * FROM trade_rules WHERE id = $1 AND tenant_id = $2`, [req.params.id, req.tenantId]);
     if (before.rows.length === 0) return res.status(404).json({ error: 'Regra não encontrada' });
 
-    const { base_value, active } = req.body;
+    const { base_value, min_value, max_value, active } = req.body;
     const fields = [], values = [];
     let i = 1;
     if (base_value !== undefined) { fields.push(`base_value = $${i++}`); values.push(base_value); }
+    if (min_value !== undefined) { fields.push(`min_value = $${i++}`); values.push(min_value); }
+    if (max_value !== undefined) { fields.push(`max_value = $${i++}`); values.push(max_value); }
     if (active !== undefined) { fields.push(`active = $${i++}`); values.push(active); }
     if (!fields.length) return res.status(400).json({ error: 'Nenhum campo para atualizar' });
 
@@ -215,6 +217,50 @@ router.patch('/evaluations/:id', requireRole('manager'), async (req, res) => {
   } catch (err) {
     if (err.name === 'ZodError') return res.status(400).json({ error: 'Dados inválidos' });
     res.status(500).json({ error: 'Erro ao atualizar avaliação' });
+  }
+});
+
+// ─────────────────────────────────────────────
+// DESCONTOS POR MODELO (trade_device_deductions)
+// ─────────────────────────────────────────────
+
+// GET /trades/device-deductions?model=iPhone+12
+router.get('/device-deductions', async (req, res) => {
+  try {
+    const { model } = req.query;
+    const result = model
+      ? await query(
+          `SELECT * FROM trade_device_deductions WHERE tenant_id = $1 AND model ILIKE $2 ORDER BY model, item`,
+          [req.tenantId, `%${model}%`]
+        )
+      : await query(
+          `SELECT * FROM trade_device_deductions WHERE tenant_id = $1 ORDER BY model, item`,
+          [req.tenantId]
+        );
+    res.json(result.rows);
+  } catch {
+    res.status(500).json({ error: 'Erro ao listar descontos por modelo' });
+  }
+});
+
+// PATCH /trades/device-deductions/:id
+router.patch('/device-deductions/:id', requireRole('manager'), async (req, res) => {
+  try {
+    const { amount, active } = req.body;
+    const fields = [], values = [];
+    let i = 1;
+    if (amount !== undefined) { fields.push(`amount = $${i++}`); values.push(amount); }
+    if (active !== undefined) { fields.push(`active = $${i++}`); values.push(active); }
+    if (!fields.length) return res.status(400).json({ error: 'Nenhum campo para atualizar' });
+    values.push(req.params.id, req.tenantId);
+    const result = await query(
+      `UPDATE trade_device_deductions SET ${fields.join(', ')} WHERE id = $${i++} AND tenant_id = $${i} RETURNING *`,
+      values
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Desconto não encontrado' });
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ error: 'Erro ao atualizar desconto' });
   }
 });
 
