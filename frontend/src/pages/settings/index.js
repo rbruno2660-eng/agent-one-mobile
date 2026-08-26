@@ -8,6 +8,7 @@ const TABS = [
   { key: 'agent', label: 'Agente' },
   { key: 'whatsapp', label: 'WhatsApp' },
   { key: 'team', label: 'Equipe' },
+  { key: 'app', label: 'App iPhone' },
 ];
 
 function Field({ label, hint, ...props }) {
@@ -187,6 +188,58 @@ export default function SettingsPage() {
                 {users.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-xs" style={{ color: 'var(--muted)' }}>Nenhum membro</td></tr>}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── APP IPHONE ── */}
+      {tab === 'app' && (
+        <div className="space-y-5">
+          <div className="rounded-2xl border p-5" style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
+            <h3 className="text-sm font-semibold text-white mb-1">Link do app</h3>
+            <p className="text-xs mb-3" style={{ color: 'var(--muted)' }}>Compartilhe este link com a equipe para acessar o sistema.</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-xs px-3 py-2.5 rounded-xl break-all" style={{ background: 'var(--bg)', color: '#60a5fa', border: '1px solid var(--border)' }}>
+                https://agent-one-mobile.vercel.app
+              </code>
+              <button
+                onClick={() => { navigator.clipboard.writeText('https://agent-one-mobile.vercel.app'); }}
+                className="px-3 py-2.5 rounded-xl text-xs font-medium border transition hover:bg-white/5 whitespace-nowrap"
+                style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}
+              >
+                Copiar
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border p-5" style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
+            <h3 className="text-sm font-semibold text-white mb-3">Como instalar no iPhone</h3>
+            <p className="text-xs mb-4 p-3 rounded-xl" style={{ background: 'rgba(239,68,68,0.08)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.2)' }}>
+              ⚠️ Use o <strong>Safari</strong> — no Chrome do iPhone não é possível adicionar à tela de início.
+            </p>
+            <ol className="space-y-4">
+              {[
+                { step: '1', title: 'Abra o link no Safari', desc: 'Cole https://agent-one-mobile.vercel.app na barra de endereços do Safari.' },
+                { step: '2', title: 'Toque em Compartilhar', desc: 'Toque no ícone ↑ (seta para cima) na barra inferior do Safari.' },
+                { step: '3', title: 'Adicionar à Tela de Início', desc: 'Role o menu para baixo e toque em "Adicionar à Tela de Início".' },
+                { step: '4', title: 'Confirme', desc: 'Mantenha o nome "Agent One" e toque em "Adicionar" no canto superior direito.' },
+              ].map(item => (
+                <li key={item.step} className="flex gap-3">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">{item.step}</span>
+                  <div>
+                    <p className="text-sm font-medium text-white">{item.title}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{item.desc}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          <div className="rounded-2xl border p-5" style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
+            <h3 className="text-sm font-semibold text-white mb-2">Login padrão para a equipe</h3>
+            <p className="text-xs" style={{ color: 'var(--muted)' }}>
+              Cada membro usa o próprio e-mail e senha criados na aba <strong className="text-white">Equipe</strong>. Crie os usuários antes de enviar o link.
+            </p>
           </div>
         </div>
       )}

@@ -109,8 +109,8 @@ export default function CatalogPage() {
           </button>
         </div>
       ) : (
-        <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
-          <table className="w-full text-sm">
+        <div className="rounded-2xl border overflow-x-auto" style={{ borderColor: 'var(--border)' }}>
+          <table className="w-full text-sm" style={{ minWidth: 680 }}>
             <thead>
               <tr className="border-b" style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
                 {['Modelo', 'Condição', 'Preço atual', 'Mín.', 'Estoque', 'Status', ''].map(h => (
