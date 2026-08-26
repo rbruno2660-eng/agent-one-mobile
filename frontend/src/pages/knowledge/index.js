@@ -5,21 +5,18 @@ import toast from 'react-hot-toast';
 import { Plus, Pencil, Trash2, X, ChevronLeft } from 'lucide-react';
 
 const CATEGORIES = [
-  { key: 'faq', label: '❓ FAQ', color: '#3b82f6' },
-  { key: 'policy', label: '📋 Política', color: '#8b5cf6' },
-  { key: 'promotions', label: '🎁 Promoções', color: '#f59e0b' },
-  { key: 'warranty', label: '🛡️ Garantia', color: '#10b981' },
-  { key: 'payment', label: '💳 Pagamento', color: '#06b6d4' },
-  { key: 'trade', label: '🔄 Troca', color: '#ec4899' },
-  { key: 'service', label: '🔧 Manutenção', color: '#f97316' },
-  { key: 'other', label: '📦 Outros', color: '#6b7280' },
+  { key: 'faq',         label: '❓ FAQ',        color: '#3b82f6' },
+  { key: 'policy',      label: '📋 Políticas',   color: '#8b5cf6' },
+  { key: 'commercial',  label: '💰 Comercial',   color: '#f59e0b' },
+  { key: 'operational', label: '🔧 Operacional',  color: '#10b981' },
+  { key: 'brand',       label: '🏷️ Marca',        color: '#ec4899' },
 ];
 
 function catInfo(key) {
   return CATEGORIES.find(c => c.key === key) || { label: key, color: '#6b7280' };
 }
 
-const emptyForm = { title: '', content: '', category: 'faq' };
+const emptyForm = { title: '', content: '', category: 'faq', type: 'faq' };
 
 export default function KnowledgePage() {
   const [docs, setDocs] = useState([]);
@@ -129,17 +126,17 @@ export default function KnowledgePage() {
         {docs.map(doc => {
           const cat = catInfo(doc.category);
           return (
-            <div key={doc.id} className={`rounded-2xl p-4 border transition ${!doc.active ? 'opacity-50' : ''}`}
+            <div key={doc.id} onClick={() => openEdit(doc)} className={`rounded-2xl p-4 border transition cursor-pointer hover:border-blue-500/40 ${!doc.active ? 'opacity-50' : ''}`}
               style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
               <div className="flex justify-between items-start mb-2">
                 <span className="inline-flex px-2 py-0.5 rounded-md text-xs font-medium" style={{ background: cat.color + '22', color: cat.color }}>
                   {cat.label}
                 </span>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => openEdit(doc)} className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition">
+                  <button onClick={e => { e.stopPropagation(); openEdit(doc); }} className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition">
                     <Pencil size={12} />
                   </button>
-                  <button onClick={() => setConfirmDelete(doc)} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-400/10 transition">
+                  <button onClick={e => { e.stopPropagation(); setConfirmDelete(doc); }} className="p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-400/10 transition">
                     <Trash2 size={12} />
                   </button>
                 </div>
@@ -150,7 +147,7 @@ export default function KnowledgePage() {
                 <span className="text-xs" style={{ color: 'var(--muted)' }}>
                   {new Date(doc.updated_at).toLocaleDateString('pt-BR')}
                 </span>
-                <button onClick={() => toggleActive(doc)} className="text-xs px-2 py-1 rounded-md border transition"
+                <button onClick={e => { e.stopPropagation(); toggleActive(doc); }} className="text-xs px-2 py-1 rounded-md border transition"
                   style={{ borderColor: doc.active ? '#22c55e44' : 'var(--border)', color: doc.active ? '#22c55e' : 'var(--muted)', background: doc.active ? '#22c55e11' : 'transparent' }}>
                   {doc.active ? 'Ativo' : 'Inativo'}
                 </button>
