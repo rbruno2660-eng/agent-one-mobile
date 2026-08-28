@@ -36,7 +36,7 @@ router.get('/', async (req, res) => {
     `, values);
 
     const countResult = await query(
-      `SELECT COUNT(*) FROM audit_logs WHERE ${conditions.join(' AND ')}`,
+      `SELECT COUNT(*) FROM audit_logs a WHERE ${conditions.join(' AND ')}`,
       values.slice(0, -2)
     );
 
