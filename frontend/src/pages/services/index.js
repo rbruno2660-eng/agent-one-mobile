@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Layout from '../../components/Layout';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
-import { Plus, Pencil, X, Check } from 'lucide-react';
+import { Plus, Pencil, X, Check, Trash2 } from 'lucide-react';
 
 const emptyForm = { name: '', description: '', price: '', min_price: '', warranty_days: '90', turnaround_days: '1', compatible_with: '' };
 
@@ -12,6 +12,8 @@ export default function ServicesPage() {
   const [editing, setEditing] = useState(null); // null = new, id = editing
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [selected, setSelected] = useState(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   async function fetchServices() {
     const r = await api.get('/services').catch(() => ({ data: [] }));
@@ -84,6 +86,30 @@ export default function ServicesPage() {
     } catch { toast.error('Erro ao atualizar'); }
   }
 
+  function toggleSelect(id) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  async function deleteSelected() {
+    if (selected.size === 0) return;
+    if (!confirm(`Excluir ${selected.size} serviço(s)? Esta ação não pode ser desfeita.`)) return;
+    setDeleting(true);
+    try {
+      await Promise.all([...selected].map(id => api.delete(`/services/${id}`)));
+      toast.success(`${selected.size} serviço(s) excluído(s)`);
+      setSelected(new Set());
+      fetchServices();
+    } catch {
+      toast.error('Erro ao excluir serviços');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   function formatBRL(v) {
     return v != null ? `R$ ${parseFloat(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—';
   }
@@ -96,6 +122,21 @@ export default function ServicesPage() {
           <Plus size={14} /> Novo serviço
         </button>
       </div>
+
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 mb-5 px-4 py-3 rounded-xl" style={{ background: '#dc262620', border: '1px solid #dc262640' }}>
+          <span className="text-sm text-white font-medium">{selected.size} selecionado(s)</span>
+          <button
+            onClick={deleteSelected}
+            disabled={deleting}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition"
+            style={{ background: '#dc2626' }}
+          >
+            <Trash2 size={13} /> {deleting ? 'Excluindo...' : 'Excluir selecionados'}
+          </button>
+          <button onClick={() => setSelected(new Set())} className="text-sm ml-auto" style={{ color: 'var(--muted)' }}>Cancelar</button>
+        </div>
+      )}
 
       {/* Form */}
       {showForm && (
@@ -158,9 +199,18 @@ export default function ServicesPage() {
       {/* Cards grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {services.map(svc => (
-          <div key={svc.id} className={`rounded-2xl p-5 border transition ${!svc.active ? 'opacity-50' : ''}`} style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
+          <div key={svc.id} className={`rounded-2xl p-5 border transition relative ${!svc.active ? 'opacity-50' : ''}`} style={{ background: 'var(--bg2)', borderColor: selected.has(svc.id) ? '#dc2626' : 'var(--border)' }}>
             <div className="flex justify-between items-start mb-2">
-              <h3 className="text-white font-semibold text-sm leading-snug flex-1 pr-2">{svc.name}</h3>
+              <div className="flex items-center gap-2 flex-1 pr-2">
+                <input
+                  type="checkbox"
+                  checked={selected.has(svc.id)}
+                  onChange={() => toggleSelect(svc.id)}
+                  className="rounded cursor-pointer flex-shrink-0"
+                  style={{ accentColor: '#dc2626' }}
+                />
+                <h3 className="text-white font-semibold text-sm leading-snug">{svc.name}</h3>
+              </div>
               <div className="flex items-center gap-1">
                 <button onClick={() => openEdit(svc)} className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition"><Pencil size={13} /></button>
                 <button onClick={() => toggleActive(svc)} className="p-1.5 rounded-lg hover:bg-white/10 transition" title={svc.active ? 'Desativar' : 'Ativar'}>

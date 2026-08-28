@@ -38,6 +38,10 @@ export default function TradesPage() {
   // Search
   const [search, setSearch] = useState('');
 
+  // Bulk select
+  const [selectedRules, setSelectedRules] = useState(new Set());
+  const [deletingRules, setDeletingRules] = useState(false);
+
   const fetchAll = useCallback(async () => {
     const [r, e] = await Promise.all([
       api.get('/trades/rules').catch(() => ({ data: [] })),
@@ -117,6 +121,38 @@ export default function TradesPage() {
     try { await api.delete(`/trades/rules/${id}`); fetchAll(); } catch { toast.error('Erro ao remover'); }
   }
 
+  function toggleSelectRule(id) {
+    setSelectedRules(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllRules() {
+    if (selectedRules.size === filteredRules.length) {
+      setSelectedRules(new Set());
+    } else {
+      setSelectedRules(new Set(filteredRules.map(r => r.id)));
+    }
+  }
+
+  async function deleteSelectedRules() {
+    if (selectedRules.size === 0) return;
+    if (!confirm(`Excluir ${selectedRules.size} regra(s)? Esta ação não pode ser desfeita.`)) return;
+    setDeletingRules(true);
+    try {
+      await Promise.all([...selectedRules].map(id => api.delete(`/trades/rules/${id}`)));
+      toast.success(`${selectedRules.size} regra(s) excluída(s)`);
+      setSelectedRules(new Set());
+      fetchAll();
+    } catch {
+      toast.error('Erro ao excluir regras');
+    } finally {
+      setDeletingRules(false);
+    }
+  }
+
   async function saveDedEdit(ded) {
     try {
       await api.patch(`/trades/device-deductions/${ded.id}`, { amount: parseFloat(editDedAmount) });
@@ -175,6 +211,21 @@ export default function TradesPage() {
             </button>
           </div>
 
+          {selectedRules.size > 0 && (
+            <div className="flex items-center gap-3 mb-4 px-4 py-3 rounded-xl" style={{ background: '#dc262620', border: '1px solid #dc262640' }}>
+              <span className="text-sm text-white font-medium">{selectedRules.size} selecionado(s)</span>
+              <button
+                onClick={deleteSelectedRules}
+                disabled={deletingRules}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-white disabled:opacity-50 transition"
+                style={{ background: '#dc2626' }}
+              >
+                <Trash2 size={13} /> {deletingRules ? 'Excluindo...' : 'Excluir selecionados'}
+              </button>
+              <button onClick={() => setSelectedRules(new Set())} className="text-sm ml-auto" style={{ color: 'var(--muted)' }}>Cancelar</button>
+            </div>
+          )}
+
           {showRuleForm && (
             <form onSubmit={saveRule} className="mb-4 p-4 rounded-2xl border flex items-end gap-3 flex-wrap" style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
               <div className="flex-1 min-w-40">
@@ -202,7 +253,16 @@ export default function TradesPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b" style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
-                  <th className="text-left px-4 py-3 font-medium w-8" style={{ color: 'var(--muted)' }}></th>
+                  <th className="px-4 py-3 w-8">
+                    <input
+                      type="checkbox"
+                      checked={filteredRules.length > 0 && selectedRules.size === filteredRules.length}
+                      onChange={toggleSelectAllRules}
+                      className="rounded cursor-pointer"
+                      style={{ accentColor: 'var(--primary)' }}
+                    />
+                  </th>
+                  <th className="text-left px-3 py-3 font-medium w-8" style={{ color: 'var(--muted)' }}></th>
                   <th className="text-left px-4 py-3 font-medium" style={{ color: 'var(--muted)' }}>Modelo</th>
                   <th className="text-left px-4 py-3 font-medium" style={{ color: 'var(--muted)' }}>Armazenamento</th>
                   <th className="text-left px-4 py-3 font-medium" style={{ color: 'var(--muted)' }}>Valor mínimo</th>
@@ -214,7 +274,17 @@ export default function TradesPage() {
                 {filteredRules.map(r => (
                   <>
                     {/* Main row */}
-                    <tr key={r.id} className="border-b hover:bg-white/[0.02]" style={{ borderColor: 'var(--border)' }}>
+                    <tr key={r.id} className="border-b hover:bg-white/[0.02]" style={{ borderColor: 'var(--border)', background: selectedRules.has(r.id) ? 'rgba(220,38,38,0.05)' : undefined }}>
+                      {/* Checkbox */}
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedRules.has(r.id)}
+                          onChange={() => toggleSelectRule(r.id)}
+                          className="rounded cursor-pointer"
+                          style={{ accentColor: 'var(--primary)' }}
+                        />
+                      </td>
                       {/* Expand toggle */}
                       <td className="px-3 py-3 text-center">
                         <button onClick={() => toggleExpand(r.model)} className="text-gray-500 hover:text-white transition">
@@ -262,7 +332,7 @@ export default function TradesPage() {
                     {/* Expanded deductions row */}
                     {expandedModel === r.model && (
                       <tr key={r.id + '-exp'} style={{ borderColor: 'var(--border)' }} className="border-b">
-                        <td colSpan={6} className="px-6 py-3" style={{ background: 'var(--bg2)' }}>
+                        <td colSpan={7} className="px-6 py-3" style={{ background: 'var(--bg2)' }}>
                           <p className="text-xs font-medium mb-2" style={{ color: 'var(--muted)' }}>Descontos por defeito — {r.model}</p>
                           {!modelDeductions[r.model] ? (
                             <p className="text-xs" style={{ color: 'var(--muted)' }}>Carregando...</p>
@@ -301,7 +371,7 @@ export default function TradesPage() {
                   </>
                 ))}
                 {filteredRules.length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--muted)' }}>
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--muted)' }}>
                     {search ? 'Nenhum modelo encontrado' : 'Nenhuma regra cadastrada'}
                   </td></tr>
                 )}

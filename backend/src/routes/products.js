@@ -154,6 +154,21 @@ router.patch('/:id/inventory', requireRole('manager'), async (req, res) => {
   }
 });
 
+// ─── DELETE /products/:id ─────────────────────
+router.delete('/:id', requireRole('manager'), async (req, res) => {
+  try {
+    const { query } = require('../db/pool');
+    const result = await query(
+      `DELETE FROM products WHERE id = $1 AND tenant_id = $2 RETURNING id`,
+      [req.params.id, req.tenantId]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Produto não encontrado' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao excluir produto' });
+  }
+});
+
 // ─── POST /products/import ────────────────────
 // Importação via JSON (frontend converte CSV/XLSX antes de enviar)
 router.post('/import', requireRole('manager'), async (req, res) => {
