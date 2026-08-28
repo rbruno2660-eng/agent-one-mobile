@@ -60,22 +60,24 @@ router.patch('/:id', requireRole('admin'), async (req, res) => {
       name: z.string().min(2).optional(),
       role: z.enum(['admin','manager','seller','service','viewer']).optional(),
       status: z.enum(['active','inactive']).optional(),
+      phone: z.string().nullable().optional(),
     });
     const data = schema.parse(req.body);
 
     const fields = [];
     const values = [];
     let i = 1;
-    if (data.name) { fields.push(`name = $${i++}`); values.push(data.name); }
-    if (data.role) { fields.push(`role = $${i++}`); values.push(data.role); }
-    if (data.status) { fields.push(`status = $${i++}`); values.push(data.status); }
+    if (data.name !== undefined) { fields.push(`name = $${i++}`); values.push(data.name); }
+    if (data.role !== undefined) { fields.push(`role = $${i++}`); values.push(data.role); }
+    if (data.status !== undefined) { fields.push(`status = $${i++}`); values.push(data.status); }
+    if (data.phone !== undefined) { fields.push(`phone = $${i++}`); values.push(data.phone); }
     if (fields.length === 0) return res.status(400).json({ error: 'Nenhum campo para atualizar' });
 
     values.push(req.params.id, req.tenantId);
     const result = await query(
       `UPDATE users SET ${fields.join(', ')}, updated_at = NOW()
        WHERE id = $${i++} AND tenant_id = $${i}
-       RETURNING id, name, email, role, status`,
+       RETURNING id, name, email, phone, role, status`,
       values
     );
 
