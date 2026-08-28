@@ -26,7 +26,7 @@ router.get('/', async (req, res) => {
     const result = await query(`
       SELECT
         a.id, a.action, a.entity, a.entity_id,
-        a.before_data, a.after_data, a.created_at,
+        a.before, a.after, a.created_at,
         u.name AS actor_name, u.email AS actor_email
       FROM audit_logs a
       LEFT JOIN users u ON u.id = a.actor_id
@@ -36,7 +36,7 @@ router.get('/', async (req, res) => {
     `, values);
 
     const countResult = await query(
-      `SELECT COUNT(*) FROM audit_logs WHERE ${conditions.slice(0, -0).join(' AND ')}`,
+      `SELECT COUNT(*) FROM audit_logs WHERE ${conditions.join(' AND ')}`,
       values.slice(0, -2)
     );
 

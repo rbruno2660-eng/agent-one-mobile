@@ -56,7 +56,7 @@ router.get('/overview', async (req, res) => {
         JOIN conversations c ON c.id = tc.conversation_id
         LEFT JOIN products p ON p.id = (tc.input->>'product_id')::uuid
         WHERE c.tenant_id = $1
-          AND tc.tool_name IN ('get_product_price','check_stock')
+          AND tc.tool IN ('get_product_price','check_stock')
           AND tc.created_at >= NOW() - INTERVAL '${days} days'
           AND tc.input->>'product_id' IS NOT NULL
         GROUP BY tc.input->>'product_id', p.model, p.storage
