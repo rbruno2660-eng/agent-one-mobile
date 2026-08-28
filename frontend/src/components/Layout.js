@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import {
   LayoutDashboard, MessageSquare, Package, BarChart2,
-  Users, Settings, LogOut, Wrench, TrendingUp, BookOpen, RefreshCcw, Menu, X
+  Users, Settings, LogOut, Wrench, TrendingUp, BookOpen, RefreshCcw, Menu, X, Headphones
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -18,6 +18,7 @@ const navItems = [
   { href: '/knowledge',     label: 'Knowledge',    icon: BookOpen },
   { href: '/analytics',     label: 'Analytics',    icon: BarChart2 },
   { href: '/team',          label: 'Equipe',       icon: Users },
+  { href: '/handoff-agents', label: 'Atendentes',   icon: Headphones },
   { href: '/settings',      label: 'Configurações',icon: Settings },
 ];
 

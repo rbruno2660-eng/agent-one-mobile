@@ -29,16 +29,22 @@ export default function DashboardPage() {
   }, [user, loading]);
 
   useEffect(() => {
-    // Busca stats básicos
     Promise.all([
       api.get('/products?active=true').catch(() => ({ data: [] })),
       api.get('/leads').catch(() => ({ data: [] })),
-    ]).then(([products, leads]) => {
+      api.get('/analytics/overview?period=1').catch(() => ({ data: null })),
+    ]).then(([products, leads, analytics]) => {
       const outOfStock = (products.data || []).filter(p => (p.available || 0) === 0).length;
+      const overview = analytics.data;
+      // Leads: soma todos os estágios do analytics (mais confiável que o JOIN de /leads)
+      const leadsTotal = overview?.leads
+        ? Object.values(overview.leads).reduce((a, b) => a + b, 0)
+        : (leads.data || []).length;
       setStats({
         products: (products.data || []).length,
-        leads: (leads.data || []).length,
+        leads: leadsTotal,
         out_of_stock: outOfStock,
+        conversations_today: overview?.conversations?.total ?? 0,
       });
     });
   }, []);
@@ -54,7 +60,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-8">
         <StatCard title="Produtos ativos" value={stats?.products} icon={Package} color="#2563eb" />
-        <StatCard title="Conversas hoje" value="—" icon={MessageSquare} color="#7c3aed" />
+        <StatCard title="Conversas hoje" value={stats?.conversations_today} icon={MessageSquare} color="#7c3aed" />
         <StatCard title="Leads" value={stats?.leads} icon={TrendingUp} color="#059669" />
         <StatCard title="Sem estoque" value={stats?.out_of_stock} icon={AlertTriangle} color="#dc2626" />
       </div>

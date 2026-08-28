@@ -225,7 +225,7 @@ async function executeTool(toolName, input, context) {
         );
         await conversationService.updateConversationStatus(conversationId, 'human_requested');
 
-        // Notifica membros da equipe com WhatsApp cadastrado
+        // Notifica atendentes cadastrados (ou managers com phone como fallback)
         try {
           const channelResult = await query(
             `SELECT phone_id FROM channels WHERE tenant_id = $1 AND status = 'active' LIMIT 1`,
@@ -234,13 +234,24 @@ async function executeTool(toolName, input, context) {
           const phoneId = channelResult.rows[0]?.phone_id;
 
           if (phoneId) {
-            const teamResult = await query(
-              `SELECT name, phone FROM users
-               WHERE tenant_id = $1 AND status = 'active'
+            // Primeiro tenta atendentes de handoff cadastrados
+            let teamResult = await query(
+              `SELECT name, phone FROM handoff_agents
+               WHERE tenant_id = $1 AND active = TRUE
                  AND phone IS NOT NULL AND phone != ''
-                 AND role IN ('owner','admin','manager')`,
+               ORDER BY name`,
               [tenantId]
             );
+            // Fallback: managers/admins com phone cadastrado
+            if (teamResult.rows.length === 0) {
+              teamResult = await query(
+                `SELECT name, phone FROM users
+                 WHERE tenant_id = $1 AND status = 'active'
+                   AND phone IS NOT NULL AND phone != ''
+                   AND role IN ('owner','admin','manager')`,
+                [tenantId]
+              );
+            }
 
             const reasonLabels = {
               customer_requested: 'Cliente solicitou atendente',
