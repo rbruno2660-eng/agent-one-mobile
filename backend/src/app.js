@@ -38,18 +38,14 @@ const authLimiter = rateLimit({
   message: { error: 'Muitas tentativas de login. Aguarde 15 minutos.' },
 });
 
-// Captura rawBody antes do parse JSON (necessário para validar assinatura HMAC do WhatsApp)
-// IMPORTANTE: next() só é chamado após 'end' para garantir que req.rawBody está completo
-app.use((req, res, next) => {
-  const chunks = [];
-  req.on('data', chunk => chunks.push(chunk));
-  req.on('end', () => {
-    req.rawBody = Buffer.concat(chunks).toString('utf8');
-    next();
-  });
-  req.on('error', next);
-});
-app.use(express.json({ limit: '5mb' }));
+// Captura rawBody via verify do express.json (evita double-consume do stream)
+// Necessário para validar assinatura HMAC do webhook WhatsApp
+app.use(express.json({
+  limit: '5mb',
+  verify: (req, res, buf) => {
+    req.rawBody = buf.toString('utf8');
+  },
+}));
 app.use(express.urlencoded({ extended: true }));
 
 // ─── Request logging ───────────────────────────
