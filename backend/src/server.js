@@ -20,6 +20,17 @@ async function runMigrations() {
       active BOOLEAN NOT NULL DEFAULT true,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`,
+    `CREATE TABLE IF NOT EXISTS handoffs (
+      id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      conversation_id UUID NOT NULL REFERENCES conversations(id),
+      tenant_id       UUID NOT NULL,
+      reason          TEXT NOT NULL,
+      summary         TEXT,
+      status          TEXT NOT NULL DEFAULT 'pending',
+      assigned_to     UUID REFERENCES users(id),
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
     `CREATE TABLE IF NOT EXISTS handoff_agents (
       id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
       tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

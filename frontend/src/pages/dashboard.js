@@ -33,18 +33,20 @@ export default function DashboardPage() {
       api.get('/products?active=true').catch(() => ({ data: [] })),
       api.get('/leads').catch(() => ({ data: [] })),
       api.get('/analytics/overview?period=1').catch(() => ({ data: null })),
-    ]).then(([products, leads, analytics]) => {
+      api.get('/analytics/overview?period=365').catch(() => ({ data: null })),
+    ]).then(([products, leads, analyticsToday, analyticsAll]) => {
       const outOfStock = (products.data || []).filter(p => (p.available || 0) === 0).length;
-      const overview = analytics.data;
-      // Leads: soma todos os estágios do analytics (mais confiável que o JOIN de /leads)
-      const leadsTotal = overview?.leads
-        ? Object.values(overview.leads).reduce((a, b) => a + b, 0)
+      const today = analyticsToday.data;
+      const all = analyticsAll.data;
+      // Leads: soma todos os estágios do analytics anual (total, não só hoje)
+      const leadsTotal = all?.leads
+        ? Object.values(all.leads).reduce((a, b) => a + b, 0)
         : (leads.data || []).length;
       setStats({
         products: (products.data || []).length,
         leads: leadsTotal,
         out_of_stock: outOfStock,
-        conversations_today: overview?.conversations?.total ?? 0,
+        conversations_today: today?.conversations?.total ?? 0,
       });
     });
   }, []);
