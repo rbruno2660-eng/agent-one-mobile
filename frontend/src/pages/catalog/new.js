@@ -43,6 +43,9 @@ const IPHONE_MODELS = [
   'iPhone 14','iPhone 14 Plus','iPhone 14 Pro','iPhone 14 Pro Max',
   'iPhone 15','iPhone 15 Plus','iPhone 15 Pro','iPhone 15 Pro Max',
   'iPhone 16','iPhone 16 Plus','iPhone 16 Pro','iPhone 16 Pro Max',
+  'Samsung Galaxy S24','Samsung Galaxy S24+','Samsung Galaxy S24 Ultra',
+  'Samsung Galaxy S23','Samsung Galaxy S23+','Samsung Galaxy S23 Ultra',
+  'Samsung Galaxy A54','Samsung Galaxy A34','Samsung Galaxy A15',
 ];
 
 const STORAGES = ['64GB','128GB','256GB','512GB','1TB'];
@@ -128,16 +131,31 @@ export default function NewProductPage() {
         <Section title="Identificação">
           <div className="grid grid-cols-2 gap-4">
             <Field label="Modelo" required>
-              <Select value={form.model} onChange={e => set('model', e.target.value)} required>
-                <option value="">Selecione</option>
-                {IPHONE_MODELS.map(m => <option key={m} value={m}>{m}</option>)}
-              </Select>
+              <>
+                <Input
+                  list="model-suggestions"
+                  value={form.model}
+                  onChange={e => set('model', e.target.value)}
+                  placeholder="Ex: iPhone 16 Pro Max, Samsung S24..."
+                  required
+                />
+                <datalist id="model-suggestions">
+                  {IPHONE_MODELS.map(m => <option key={m} value={m} />)}
+                </datalist>
+              </>
             </Field>
             <Field label="Armazenamento">
-              <Select value={form.storage} onChange={e => set('storage', e.target.value)}>
-                <option value="">Selecione</option>
-                {STORAGES.map(s => <option key={s} value={s}>{s}</option>)}
-              </Select>
+              <>
+                <Input
+                  list="storage-suggestions"
+                  value={form.storage}
+                  onChange={e => set('storage', e.target.value)}
+                  placeholder="Ex: 128GB, 256GB..."
+                />
+                <datalist id="storage-suggestions">
+                  {STORAGES.map(s => <option key={s} value={s} />)}
+                </datalist>
+              </>
             </Field>
             <Field label="Condição" required>
               <Select value={form.condition} onChange={e => set('condition', e.target.value)}>
