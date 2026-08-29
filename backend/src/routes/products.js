@@ -127,8 +127,8 @@ router.patch('/:id/inventory', requireRole('manager'), async (req, res) => {
     if (quantity === undefined || quantity < 0) return res.status(400).json({ error: 'quantity inválido' });
 
     const before = await query(
-      `SELECT quantity FROM inventory WHERE product_id = $1`,
-      [req.params.id]
+      `SELECT quantity FROM inventory WHERE product_id = $1 AND tenant_id = $2`,
+      [req.params.id, req.tenantId]
     );
     if (before.rows.length === 0) return res.status(404).json({ error: 'Produto não encontrado' });
 

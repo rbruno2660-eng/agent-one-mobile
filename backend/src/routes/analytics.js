@@ -21,33 +21,34 @@ router.get('/overview', async (req, res) => {
       topProductsResult,
       dailyResult,
     ] = await Promise.all([
-      // Total conversas no período
+      // Total conversas no período — $2 = dias (inteiro sanitizado)
       query(`
         SELECT
-          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '${days} days') AS total,
-          COUNT(*) FILTER (WHERE status = 'closed' AND created_at >= NOW() - INTERVAL '${days} days') AS closed,
-          COUNT(*) FILTER (WHERE status IN ('human_requested','human_active') AND created_at >= NOW() - INTERVAL '${days} days') AS in_handoff
+          COUNT(*) FILTER (WHERE created_at >= NOW() - ($2 * INTERVAL '1 day')) AS total,
+          COUNT(*) FILTER (WHERE status = 'closed' AND created_at >= NOW() - ($2 * INTERVAL '1 day')) AS closed,
+          COUNT(*) FILTER (WHERE status IN ('human_requested','human_active') AND created_at >= NOW() - ($2 * INTERVAL '1 day')) AS in_handoff
         FROM conversations WHERE tenant_id = $1
-      `, [tid]),
+      `, [tid, days]),
 
       // Total mensagens
       query(`
         SELECT COUNT(*) AS total FROM messages m
         JOIN conversations c ON c.id = m.conversation_id
-        WHERE c.tenant_id = $1 AND m.created_at >= NOW() - INTERVAL '${days} days'
-      `, [tid]),
+        WHERE c.tenant_id = $1 AND m.created_at >= NOW() - ($2 * INTERVAL '1 day')
+      `, [tid, days]),
 
       // Taxa de handoff
       query(`
-        SELECT COUNT(*) AS total FROM handoffs WHERE tenant_id = $1 AND created_at >= NOW() - INTERVAL '${days} days'
-      `, [tid]),
+        SELECT COUNT(*) AS total FROM handoffs
+        WHERE tenant_id = $1 AND created_at >= NOW() - ($2 * INTERVAL '1 day')
+      `, [tid, days]),
 
       // Leads no funil
       query(`
         SELECT stage, COUNT(*) AS count FROM leads
-        WHERE tenant_id = $1 AND created_at >= NOW() - INTERVAL '${days} days'
+        WHERE tenant_id = $1 AND created_at >= NOW() - ($2 * INTERVAL '1 day')
         GROUP BY stage
-      `, [tid]),
+      `, [tid, days]),
 
       // Produtos mais consultados via tool_calls
       query(`
@@ -57,11 +58,11 @@ router.get('/overview', async (req, res) => {
         LEFT JOIN products p ON p.id = (tc.input->>'product_id')::uuid
         WHERE c.tenant_id = $1
           AND tc.tool IN ('get_product_price','check_stock')
-          AND tc.created_at >= NOW() - INTERVAL '${days} days'
+          AND tc.created_at >= NOW() - ($2 * INTERVAL '1 day')
           AND tc.input->>'product_id' IS NOT NULL
         GROUP BY tc.input->>'product_id', p.model, p.storage
         ORDER BY queries DESC LIMIT 5
-      `, [tid]),
+      `, [tid, days]),
 
       // Conversas por dia (últimos 14 dias sempre, para o gráfico)
       query(`

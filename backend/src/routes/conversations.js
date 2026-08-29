@@ -83,7 +83,7 @@ router.post('/:id/handoff', async (req, res) => {
     );
 
     // Atualiza status da conversa
-    await conversationService.updateConversationStatus(req.params.id, 'human_requested');
+    await conversationService.updateConversationStatus(req.params.id, req.tenantId, 'human_requested');
 
     await auditLog({
       tenantId: req.tenantId,
@@ -104,13 +104,18 @@ router.post('/:id/handoff', async (req, res) => {
 router.patch('/:id/assign', async (req, res) => {
   try {
     const { user_id } = req.body;
-    await conversationService.updateConversationStatus(req.params.id, 'human_active', user_id);
 
-    // Atualiza handoff pendente
+    // Verifica ownership e atualiza em uma só operação com tenant_id
+    const updated = await conversationService.updateConversationStatus(
+      req.params.id, req.tenantId, 'human_active', user_id
+    );
+    if (!updated) return res.status(404).json({ error: 'Conversa não encontrada' });
+
+    // Atualiza handoff pendente — filtra por tenant_id para evitar cross-tenant
     await query(
       `UPDATE handoffs SET status = 'assigned', assigned_to = $1, updated_at = NOW()
-       WHERE conversation_id = $2 AND status = 'pending'`,
-      [user_id, req.params.id]
+       WHERE conversation_id = $2 AND tenant_id = $3 AND status = 'pending'`,
+      [user_id, req.params.id, req.tenantId]
     );
 
     res.json({ ok: true });
@@ -122,7 +127,10 @@ router.patch('/:id/assign', async (req, res) => {
 // PATCH /conversations/:id/close — encerra conversa
 router.patch('/:id/close', async (req, res) => {
   try {
-    await conversationService.updateConversationStatus(req.params.id, 'closed');
+    const updated = await conversationService.updateConversationStatus(
+      req.params.id, req.tenantId, 'closed'
+    );
+    if (!updated) return res.status(404).json({ error: 'Conversa não encontrada' });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Erro ao encerrar conversa' });
@@ -132,7 +140,10 @@ router.patch('/:id/close', async (req, res) => {
 // PATCH /conversations/:id/return-to-ai — devolve para IA
 router.patch('/:id/return-to-ai', requireRole('seller'), async (req, res) => {
   try {
-    await conversationService.updateConversationStatus(req.params.id, 'ai_active', null);
+    const updated = await conversationService.updateConversationStatus(
+      req.params.id, req.tenantId, 'ai_active', null
+    );
+    if (!updated) return res.status(404).json({ error: 'Conversa não encontrada' });
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Erro ao devolver conversa para IA' });

@@ -74,8 +74,10 @@ async function saveMessage({ conversationId, tenantId, direction, type, content,
 
 /**
  * Atualiza o status de uma conversa.
+ * tenantId é obrigatório para garantir isolamento multi-tenant.
+ * Retorna rowCount — 0 indica que a conversa não pertence ao tenant.
  */
-async function updateConversationStatus(conversationId, status, assignedUserId = undefined) {
+async function updateConversationStatus(conversationId, tenantId, status, assignedUserId = undefined) {
   const fields = ['status = $1', 'updated_at = NOW()'];
   const values = [status];
 
@@ -84,11 +86,13 @@ async function updateConversationStatus(conversationId, status, assignedUserId =
     values.push(assignedUserId);
   }
 
-  values.push(conversationId);
-  await query(
-    `UPDATE conversations SET ${fields.join(', ')} WHERE id = $${values.length}`,
+  values.push(conversationId, tenantId);
+  const result = await query(
+    `UPDATE conversations SET ${fields.join(', ')}
+     WHERE id = $${values.length - 1} AND tenant_id = $${values.length}`,
     values
   );
+  return result.rowCount;
 }
 
 /**

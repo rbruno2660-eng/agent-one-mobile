@@ -39,11 +39,15 @@ const authLimiter = rateLimit({
 });
 
 // Captura rawBody antes do parse JSON (necessário para validar assinatura HMAC do WhatsApp)
+// IMPORTANTE: next() só é chamado após 'end' para garantir que req.rawBody está completo
 app.use((req, res, next) => {
-  let raw = '';
-  req.on('data', chunk => { raw += chunk; });
-  req.on('end', () => { req.rawBody = raw; });
-  next();
+  const chunks = [];
+  req.on('data', chunk => chunks.push(chunk));
+  req.on('end', () => {
+    req.rawBody = Buffer.concat(chunks).toString('utf8');
+    next();
+  });
+  req.on('error', next);
 });
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -84,8 +88,16 @@ app.use((req, res) => {
 
 // ─── Error handler ─────────────────────────────
 app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(err.status || 500).json({ error: err.message || 'Erro interno' });
+  const status = err.status || err.statusCode || 500;
+  logger.error({ err, method: req.method, url: req.url, status });
+
+  // Em produção, não vazar mensagens de erro internas (500+) para o cliente
+  const isProd = process.env.NODE_ENV === 'production';
+  const message = (isProd && status >= 500)
+    ? 'Erro interno do servidor'
+    : (err.message || 'Erro interno');
+
+  res.status(status).json({ error: message });
 });
 
 module.exports = app;

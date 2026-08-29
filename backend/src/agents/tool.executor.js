@@ -223,7 +223,7 @@ async function executeTool(toolName, input, context) {
            VALUES ($1,$2,$3,$4,'pending')`,
           [conversationId, tenantId, input.reason, input.summary]
         );
-        await conversationService.updateConversationStatus(conversationId, 'human_requested');
+        await conversationService.updateConversationStatus(conversationId, tenantId, 'human_requested');
 
         // Notifica atendentes cadastrados (ou managers com phone como fallback)
         try {

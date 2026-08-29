@@ -76,7 +76,7 @@ async function processInbound({ tenantId, phoneId, from, name, message }) {
 
   // 4. Atualiza status da conversa para ai_active
   if (conversation.status === 'new') {
-    await conversationService.updateConversationStatus(conversation.id, 'ai_active');
+    await conversationService.updateConversationStatus(conversation.id, tenantId, 'ai_active');
   }
 
   // 5. Se conversa está com humano ativo, não responde automaticamente

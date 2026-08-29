@@ -91,6 +91,8 @@ async function markAsRead(phoneId, messageId) {
 
 /**
  * Verifica assinatura HMAC-SHA256 do webhook Meta.
+ * timingSafeEqual exige buffers de mesmo tamanho —
+ * divergência de comprimento já indica assinatura inválida.
  */
 function verifySignature(rawBody, signature) {
   const crypto = require('crypto');
@@ -102,10 +104,13 @@ function verifySignature(rawBody, signature) {
     .update(rawBody)
     .digest('hex');
 
-  return crypto.timingSafeEqual(
-    Buffer.from(signature || ''),
-    Buffer.from(expected)
-  );
+  const sigBuf = Buffer.from(signature || '');
+  const expBuf = Buffer.from(expected);
+
+  // Comprimentos diferentes → inválido (sem vazar timing)
+  if (sigBuf.length !== expBuf.length) return false;
+
+  return crypto.timingSafeEqual(sigBuf, expBuf);
 }
 
 module.exports = { sendText, sendTemplate, markAsRead, verifySignature };
