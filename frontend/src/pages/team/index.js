@@ -57,7 +57,7 @@ export default function TeamPage() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Users size={20} className="text-blue-400" />
-          <h1 className="text-xl font-bold text-white">Equipe</h1>
+          <h1 className="text-xl font-bold text-white">Cadastro de Usuários</h1>
           {!loading && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--bg2)', color: 'var(--muted)', border: '1px solid var(--border)' }}>{users.length} membros</span>}
         </div>
         <button onClick={() => setShowForm(v => !v)}

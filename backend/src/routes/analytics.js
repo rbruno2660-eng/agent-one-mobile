@@ -1,10 +1,8 @@
 const router = require('express').Router();
 const authMiddleware = require('../middleware/auth');
-const { requireRole } = require('../middleware/rbac');
 const { query } = require('../db/pool');
 
 router.use(authMiddleware);
-router.use(requireRole('manager'));
 
 // GET /analytics/overview — métricas gerais
 router.get('/overview', async (req, res) => {

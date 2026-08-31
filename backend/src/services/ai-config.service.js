@@ -1,4 +1,4 @@
-const { query } = require('../db/pool');
+const { query, getClient } = require('../db/pool');
 
 const DEFAULT_OFFLINE_MSG = 'Olá! No momento estamos fora do horário de atendimento. Em breve retornaremos! 🕐';
 
@@ -104,18 +104,32 @@ async function updateConfig(tenantId, updates) {
 
 /**
  * Substitui completamente os slots de agenda do tenant.
+ * Executado em uma única transação — se algum INSERT falhar, DELETE é revertido.
  */
 async function updateSchedule(tenantId, slots) {
-  await query(`DELETE FROM ai_schedule_slots WHERE tenant_id = $1`, [tenantId]);
+  const TIME_RE = /^\d{2}:\d{2}$/;
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+    await client.query(`DELETE FROM ai_schedule_slots WHERE tenant_id = $1`, [tenantId]);
 
-  for (const slot of slots) {
-    if (slot.start_time && slot.end_time) {
-      await query(
+    for (const slot of slots) {
+      const start = String(slot.start_time || '').slice(0, 5);
+      const end   = String(slot.end_time   || '').slice(0, 5);
+      if (!TIME_RE.test(start) || !TIME_RE.test(end)) continue; // ignora slots malformados
+      await client.query(
         `INSERT INTO ai_schedule_slots (tenant_id, day_of_week, start_time, end_time, active)
          VALUES ($1, $2, $3, $4, $5)`,
-        [tenantId, slot.day_of_week, slot.start_time, slot.end_time, slot.active !== false]
+        [tenantId, slot.day_of_week, start, end, slot.active !== false]
       );
     }
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
   }
 
   return getConfig(tenantId);

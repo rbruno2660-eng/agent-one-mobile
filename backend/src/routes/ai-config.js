@@ -29,6 +29,18 @@ router.patch('/', async (req, res) => {
     if (manual_override !== undefined && !['active', 'inactive', null].includes(manual_override)) {
       return res.status(400).json({ error: 'manual_override inválido' });
     }
+    if (offline_message !== undefined && (typeof offline_message !== 'string' || offline_message.length > 500)) {
+      return res.status(400).json({ error: 'offline_message deve ter no máximo 500 caracteres' });
+    }
+    // Timezone: validar formato básico (ex: "America/Sao_Paulo") — evita runtime crash em toLocaleString
+    if (timezone !== undefined) {
+      if (typeof timezone !== 'string' || !/^[A-Za-z_]+\/[A-Za-z_]+$/.test(timezone)) {
+        return res.status(400).json({ error: 'timezone inválido (ex: America/Sao_Paulo)' });
+      }
+      try { new Date().toLocaleString('en-US', { timeZone: timezone }); } catch {
+        return res.status(400).json({ error: 'timezone não reconhecido' });
+      }
+    }
 
     const config = await aiConfigService.updateConfig(req.tenantId, {
       mode,
@@ -75,9 +87,11 @@ router.put('/schedule', async (req, res) => {
   try {
     const { slots } = req.body;
     if (!Array.isArray(slots)) return res.status(400).json({ error: 'slots deve ser um array' });
+    if (slots.length > 50) return res.status(400).json({ error: 'máximo 50 slots' });
 
     for (const s of slots) {
-      if (s.day_of_week < 0 || s.day_of_week > 6) {
+      const dow = parseInt(s.day_of_week);
+      if (isNaN(dow) || dow < 0 || dow > 6) {
         return res.status(400).json({ error: `day_of_week inválido: ${s.day_of_week}` });
       }
     }

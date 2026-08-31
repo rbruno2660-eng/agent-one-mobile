@@ -17,7 +17,7 @@ const navItems = [
   { href: '/services',           label: 'Manutenção',   icon: Wrench },
   { href: '/knowledge',          label: 'Knowledge',    icon: BookOpen },
   { href: '/analytics',          label: 'Analytics',    icon: BarChart2 },
-  { href: '/team',               label: 'Equipe',       icon: Users },
+  { href: '/team',               label: 'Cadastro de Usuários', icon: Users },
   { href: '/handoff-agents',     label: 'Atendentes',   icon: Headphones },
   { href: '/settings/ai-control',label: 'Controle IA',  icon: Bot },
   { href: '/settings',           label: 'Configurações',icon: Settings },

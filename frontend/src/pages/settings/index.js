@@ -6,7 +6,6 @@ import { Save } from 'lucide-react';
 
 const TABS = [
   { key: 'agent', label: 'Agente' },
-  { key: 'whatsapp', label: 'WhatsApp' },
   { key: 'team', label: 'Equipe' },
   { key: 'app', label: 'App iPhone' },
 ];
@@ -130,40 +129,6 @@ export default function SettingsPage() {
             <Save size={14} /> Salvar configurações
           </button>
         </form>
-      )}
-
-      {/* ── WHATSAPP ── */}
-      {tab === 'whatsapp' && (
-        <div className="space-y-5">
-          <p className="text-xs p-3 rounded-xl" style={{ background: 'rgba(245,158,11,0.1)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.2)' }}>
-            Configure as variáveis abaixo no arquivo <code>.env</code> do backend e reinicie o servidor.
-          </p>
-
-          <div className="space-y-4 rounded-2xl border p-5" style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
-            {[
-              { key: 'WHATSAPP_TOKEN', label: 'Access Token da API', hint: 'Token permanente gerado no Meta for Developers' },
-              { key: 'WHATSAPP_VERIFY_TOKEN', label: 'Verify Token do Webhook', hint: 'String aleatória que você define — deve coincidir com o painel do Meta' },
-              { key: 'WHATSAPP_APP_SECRET', label: 'App Secret', hint: 'Encontrado em App Settings → Basic no Meta for Developers' },
-            ].map(item => (
-              <div key={item.key}>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-medium text-white">{item.label}</span>
-                  <code className="text-xs px-2 py-0.5 rounded-md" style={{ background: 'var(--bg)', color: 'var(--muted)', border: '1px solid var(--border)' }}>{item.key}</code>
-                </div>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{item.hint}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="rounded-2xl border p-5 space-y-3" style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
-            <h3 className="text-sm font-semibold text-white">URL do Webhook</h3>
-            <p className="text-xs" style={{ color: 'var(--muted)' }}>Configure no Meta Developers → WhatsApp → Configuration:</p>
-            <code className="block text-xs px-3 py-2 rounded-xl break-all" style={{ background: 'var(--bg)', color: '#60a5fa', border: '1px solid var(--border)' }}>
-              https://SEU-DOMINIO.railway.app/webhooks/whatsapp
-            </code>
-            <p className="text-xs" style={{ color: 'var(--muted)' }}>Assinar: messages, message_deliveries, message_reads</p>
-          </div>
-        </div>
       )}
 
       {/* ── EQUIPE ── */}
