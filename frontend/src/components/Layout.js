@@ -4,22 +4,23 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import {
   LayoutDashboard, MessageSquare, Package, BarChart2,
-  Users, Settings, LogOut, Wrench, TrendingUp, BookOpen, RefreshCcw, Menu, X, Headphones
+  Users, Settings, LogOut, Wrench, TrendingUp, BookOpen, RefreshCcw, Menu, X, Headphones, Bot
 } from 'lucide-react';
 import clsx from 'clsx';
 
 const navItems = [
-  { href: '/dashboard',     label: 'Dashboard',    icon: LayoutDashboard },
-  { href: '/inbox',         label: 'Inbox',        icon: MessageSquare },
-  { href: '/catalog',       label: 'Catálogo',     icon: Package },
-  { href: '/leads',         label: 'Leads',        icon: TrendingUp },
-  { href: '/trades',        label: 'Trocas',       icon: RefreshCcw },
-  { href: '/services',      label: 'Manutenção',   icon: Wrench },
-  { href: '/knowledge',     label: 'Knowledge',    icon: BookOpen },
-  { href: '/analytics',     label: 'Analytics',    icon: BarChart2 },
-  { href: '/team',          label: 'Equipe',       icon: Users },
-  { href: '/handoff-agents', label: 'Atendentes',   icon: Headphones },
-  { href: '/settings',      label: 'Configurações',icon: Settings },
+  { href: '/dashboard',          label: 'Dashboard',    icon: LayoutDashboard },
+  { href: '/inbox',              label: 'Inbox',        icon: MessageSquare },
+  { href: '/catalog',            label: 'Catálogo',     icon: Package },
+  { href: '/leads',              label: 'Leads',        icon: TrendingUp },
+  { href: '/trades',             label: 'Trocas',       icon: RefreshCcw },
+  { href: '/services',           label: 'Manutenção',   icon: Wrench },
+  { href: '/knowledge',          label: 'Knowledge',    icon: BookOpen },
+  { href: '/analytics',          label: 'Analytics',    icon: BarChart2 },
+  { href: '/team',               label: 'Equipe',       icon: Users },
+  { href: '/handoff-agents',     label: 'Atendentes',   icon: Headphones },
+  { href: '/settings/ai-control',label: 'Controle IA',  icon: Bot },
+  { href: '/settings',           label: 'Configurações',icon: Settings },
 ];
 
 function SidebarContent({ router, user, logout, onNav }) {
@@ -34,7 +35,10 @@ function SidebarContent({ router, user, logout, onNav }) {
       {/* Nav */}
       <nav className="flex-1 py-3 overflow-y-auto">
         {navItems.map(({ href, label, icon: Icon }) => {
-          const active = router.pathname.startsWith(href);
+          // Exact match for /settings to avoid conflicting with /settings/ai-control
+          const active = href === '/settings'
+            ? router.pathname === '/settings'
+            : router.pathname.startsWith(href);
           return (
             <Link
               key={href}

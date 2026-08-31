@@ -3,6 +3,7 @@ const { buildSystemPrompt } = require('./prompt.builder');
 const { TOOL_DEFINITIONS } = require('./tools');
 const { executeTool } = require('./tool.executor');
 const { query } = require('../db/pool');
+const aiConfigService = require('../services/ai-config.service');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -27,6 +28,13 @@ async function run(tenantId, conversationId, contact, inboundMessage) {
   const status = convResult.rows[0]?.status;
   if (status === 'human_active' || status === 'human_requested' || status === 'closed') {
     return null;
+  }
+
+  // 1.5. Verifica Controle de Operação da IA
+  const aiActive = await aiConfigService.isAIActive(tenantId);
+  if (!aiActive) {
+    // Retorna mensagem offline — o caller (message.queue) vai enviá-la ao cliente
+    return await aiConfigService.getOfflineMessage(tenantId);
   }
 
   // 2. Monta system prompt

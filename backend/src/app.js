@@ -76,6 +76,7 @@ app.use('/audit', require('./routes/audit'));
 
 app.use('/analytics', require('./routes/analytics'));
 app.use('/handoff-agents', require('./routes/handoff-agents'));
+app.use('/ai-config', require('./routes/ai-config'));
 
 // ─── 404 ───────────────────────────────────────
 app.use((req, res) => {

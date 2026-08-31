@@ -40,6 +40,26 @@ async function runMigrations() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`,
+    `CREATE TABLE IF NOT EXISTS ai_config (
+      id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      tenant_id       UUID NOT NULL UNIQUE REFERENCES tenants(id) ON DELETE CASCADE,
+      mode            TEXT NOT NULL DEFAULT 'always_on',
+      manual_override TEXT,
+      pause_until     TIMESTAMPTZ,
+      offline_message TEXT NOT NULL DEFAULT 'Olá! No momento estamos fora do horário de atendimento. Em breve retornaremos! 🕐',
+      timezone        TEXT NOT NULL DEFAULT 'America/Sao_Paulo',
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+    `CREATE TABLE IF NOT EXISTS ai_schedule_slots (
+      id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      tenant_id    UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      day_of_week  INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+      start_time   TIME NOT NULL,
+      end_time     TIME NOT NULL,
+      active       BOOLEAN NOT NULL DEFAULT true,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
   ];
   for (const sql of migrations) {
     try { await query(sql); } catch (err) { console.warn('Migration skipped:', err.message); }
