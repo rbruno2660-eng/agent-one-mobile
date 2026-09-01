@@ -45,7 +45,7 @@ async function transcribeAudio(mediaId) {
     return null; // Whisper não configurado — caller trata como mídia normal
   }
 
-  const { OpenAI } = require('openai');
+  const { OpenAI, toFile } = require('openai');
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
   const { buffer, mimeType } = await downloadWhatsAppMedia(mediaId);
@@ -56,8 +56,11 @@ async function transcribeAudio(mediaId) {
   if (mimeType.includes('mpeg') || mimeType.includes('mp3'))  ext = 'mp3';
   if (mimeType.includes('webm')) ext = 'webm';
 
+  // Usa toFile do SDK openai para compatibilidade com Node 18 (File não é global)
+  const audioFile = await toFile(buffer, `audio.${ext}`, { type: mimeType });
+
   const transcript = await openai.audio.transcriptions.create({
-    file: new File([buffer], `audio.${ext}`, { type: mimeType }),
+    file: audioFile,
     model: 'whisper-1',
     language: 'pt',
   });
