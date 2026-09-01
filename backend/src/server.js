@@ -60,6 +60,9 @@ async function runMigrations() {
       active       BOOLEAN NOT NULL DEFAULT true,
       created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`,
+    // Follow-up automático de leads frios
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS last_follow_up_at TIMESTAMPTZ`,
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS follow_up_count INTEGER NOT NULL DEFAULT 0`,
   ];
   for (const sql of migrations) {
     try { await query(sql); } catch (err) { console.warn('Migration skipped:', err.message); }
@@ -78,6 +81,19 @@ runMigrations().then(() => {
       startWorker();
     } catch (err) {
       console.warn('⚠️  Worker de mensagens não iniciado (Redis offline?):', err.message);
+    }
+
+    // Cron: follow-up automático de leads frios (a cada 2 horas)
+    try {
+      const cron = require('node-cron');
+      const { runFollowUpCycle } = require('./services/followup.service');
+      cron.schedule('0 */2 * * *', async () => {
+        try { await runFollowUpCycle(); }
+        catch (err) { console.error('[FollowUp] Erro no cron:', err.message); }
+      });
+      console.log('✅ Cron de follow-up ativo (a cada 2 horas)');
+    } catch (err) {
+      console.warn('⚠️  Cron de follow-up não iniciado:', err.message);
     }
   });
 });

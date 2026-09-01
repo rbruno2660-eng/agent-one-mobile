@@ -52,6 +52,7 @@ async function processInbound({ tenantId, phoneId, from, name, message }) {
   const conversationService = require('../services/conversation.service');
   const whatsappService = require('../services/whatsapp.service');
   const agentRuntime = require('../agents/runtime');
+  const { transcribeAudio } = require('../services/transcription.service');
 
   // 1. Busca/cria contato
   const contact = await conversationService.findOrCreateContact(tenantId, from, name);
@@ -59,13 +60,28 @@ async function processInbound({ tenantId, phoneId, from, name, message }) {
   // 2. Busca/cria conversa
   const conversation = await conversationService.findOrCreateConversation(tenantId, contact.id);
 
-  // 3. Persiste mensagem (idempotência pelo provider_id)
+  // 3. Resolve conteúdo da mensagem — transcreve áudio se disponível
+  let content = message.text?.body || message.caption || '[mídia]';
+  if (message.type === 'audio' && message.audio?.id) {
+    try {
+      const transcript = await transcribeAudio(message.audio.id);
+      if (transcript) {
+        content = `[Áudio]: ${transcript}`;
+        console.log(`[Transcription] Áudio transcrito: "${transcript.slice(0, 80)}..."`);
+      }
+    } catch (err) {
+      console.warn('[Transcription] Falha ao transcrever áudio:', err.message);
+      // Fallback: conteúdo como '[mídia]' — IA informará ao cliente que não entendeu o áudio
+    }
+  }
+
+  // 3b. Persiste mensagem (idempotência pelo provider_id)
   const saved = await conversationService.saveMessage({
     conversationId: conversation.id,
     tenantId,
     direction: 'inbound',
     type: message.type || 'text',
-    content: message.text?.body || message.caption || '[mídia]',
+    content,
     providerId: message.id,
     metadata: message,
   });
