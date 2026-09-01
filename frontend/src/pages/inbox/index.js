@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import Layout from '../../components/Layout';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
-import { Send, Bot, User, RefreshCw } from 'lucide-react';
+import { Send, Bot, User, RefreshCw, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 
 const STATUS_LABEL = {
@@ -113,6 +113,19 @@ export default function InboxPage() {
     }
   }
 
+  async function deleteConversation(conv, e) {
+    e.stopPropagation();
+    if (!confirm(`Excluir conversa com ${conv.contact_name || conv.contact_phone}? Esta ação não pode ser desfeita.`)) return;
+    try {
+      await api.delete(`/conversations/${conv.id}`);
+      toast.success('Conversa excluída');
+      if (selected?.id === conv.id) { setSelected(null); setMessages([]); }
+      fetchConversations();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Erro ao excluir conversa');
+    }
+  }
+
   async function closeConversation() {
     if (!selected) return;
     try {
@@ -151,23 +164,33 @@ export default function InboxPage() {
           {conversations.length === 0 ? (
             <div className="text-center py-10 text-xs" style={{ color: 'var(--muted)' }}>Nenhuma conversa</div>
           ) : conversations.map(conv => (
-            <button
+            <div
               key={conv.id}
-              onClick={() => loadConversation(conv)}
               className={clsx(
-                'w-full text-left px-4 py-3 border-b transition',
+                'group relative w-full text-left px-4 py-3 border-b transition cursor-pointer',
                 selected?.id === conv.id ? 'bg-blue-600/10 border-blue-600/30' : 'hover:bg-white/5'
               )}
               style={{ borderColor: 'var(--border)' }}
+              onClick={() => loadConversation(conv)}
             >
               <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-medium text-white truncate">{conv.contact_name || conv.contact_phone}</span>
-                <Badge status={conv.status} />
+                <span className="text-sm font-medium text-white truncate pr-2">{conv.contact_name || conv.contact_phone}</span>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <Badge status={conv.status} />
+                  <button
+                    onClick={(e) => deleteConversation(conv, e)}
+                    className="opacity-0 group-hover:opacity-100 transition p-1 rounded hover:text-red-400"
+                    style={{ color: 'var(--muted)' }}
+                    title="Excluir conversa"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               </div>
               <div className="text-xs truncate" style={{ color: 'var(--muted)' }}>
                 {conv.last_message || 'Sem mensagens'}
               </div>
-            </button>
+            </div>
           ))}
         </div>
       </div>

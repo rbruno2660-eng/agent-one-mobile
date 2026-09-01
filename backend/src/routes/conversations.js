@@ -150,4 +150,25 @@ router.patch('/:id/return-to-ai', requireRole('seller'), async (req, res) => {
   }
 });
 
+// DELETE /conversations/:id — exclui conversa e mensagens (manager+)
+router.delete('/:id', requireRole('manager'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Verifica que a conversa pertence ao tenant
+    const check = await query(
+      `SELECT id FROM conversations WHERE id = $1 AND tenant_id = $2`,
+      [id, req.tenantId]
+    );
+    if (!check.rows.length) return res.status(404).json({ error: 'Conversa não encontrada' });
+
+    // Deleta mensagens e a conversa (ON DELETE CASCADE garante integridade)
+    await query(`DELETE FROM messages WHERE conversation_id = $1`, [id]);
+    await query(`DELETE FROM conversations WHERE id = $1 AND tenant_id = $2`, [id, req.tenantId]);
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao excluir conversa' });
+  }
+});
+
 module.exports = router;
