@@ -1,13 +1,13 @@
 /**
  * Transcrição de áudios do WhatsApp via OpenAI Whisper.
  *
- * Requer OPENAI_API_KEY no .env. Se a variável não estiver presente,
- * todas as chamadas retornam null (fallback silencioso).
+ * Usa https nativo + form-data para evitar problemas com o undici
+ * (SDK openai) em ambientes Railway (ECONNRESET em POSTs multipart).
  *
  * Fluxo:
  *   1. Busca URL de download da mídia na Graph API
  *   2. Baixa o buffer do áudio (OGG/MP4)
- *   3. Envia para Whisper e retorna o transcript em português
+ *   3. Envia para Whisper via https nativo e retorna o transcript em português
  */
 
 const BASE_URL = 'https://graph.facebook.com/v19.0';
@@ -36,6 +36,54 @@ async function downloadWhatsAppMedia(mediaId) {
 }
 
 /**
+ * Envia buffer de áudio ao Whisper via https nativo (evita undici/ECONNRESET).
+ * @param {Buffer} buffer
+ * @param {string} mimeType
+ * @param {string} ext  - extensão do arquivo (ogg, mp4, mp3, webm)
+ * @returns {string|null}
+ */
+function whisperViaHttps(buffer, mimeType, ext) {
+  const FormData = require('form-data');
+  const https = require('https');
+
+  const form = new FormData();
+  form.append('file', buffer, { filename: `audio.${ext}`, contentType: mimeType });
+  form.append('model', 'whisper-1');
+  form.append('language', 'pt');
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: 'api.openai.com',
+        path: '/v1/audio/transcriptions',
+        method: 'POST',
+        headers: {
+          ...form.getHeaders(),
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        },
+      },
+      (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.error) return reject(new Error(parsed.error.message));
+            resolve(parsed.text?.trim() || null);
+          } catch (e) {
+            reject(new Error('Resposta inválida do Whisper: ' + data.slice(0, 120)));
+          }
+        });
+      }
+    );
+
+    req.on('error', reject);
+    req.setTimeout(60000, () => { req.destroy(new Error('Whisper timeout')); });
+    form.pipe(req);
+  });
+}
+
+/**
  * Transcreve um áudio do WhatsApp usando Whisper.
  * @param {string} mediaId - ID da mídia do WhatsApp
  * @returns {string|null} Texto transcrito, ou null se Whisper não configurado
@@ -45,9 +93,6 @@ async function transcribeAudio(mediaId) {
     return null; // Whisper não configurado — caller trata como mídia normal
   }
 
-  const { OpenAI, toFile } = require('openai');
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
   const { buffer, mimeType } = await downloadWhatsAppMedia(mediaId);
 
   // Determina extensão a partir do mime type
@@ -56,16 +101,7 @@ async function transcribeAudio(mediaId) {
   if (mimeType.includes('mpeg') || mimeType.includes('mp3'))  ext = 'mp3';
   if (mimeType.includes('webm')) ext = 'webm';
 
-  // Usa toFile do SDK openai para compatibilidade com Node 18 (File não é global)
-  const audioFile = await toFile(buffer, `audio.${ext}`, { type: mimeType });
-
-  const transcript = await openai.audio.transcriptions.create({
-    file: audioFile,
-    model: 'whisper-1',
-    language: 'pt',
-  });
-
-  return transcript.text?.trim() || null;
+  return whisperViaHttps(buffer, mimeType, ext);
 }
 
 module.exports = { transcribeAudio };
