@@ -161,9 +161,13 @@ router.delete('/:id', requireRole('manager'), async (req, res) => {
     );
     if (!check.rows.length) return res.status(404).json({ error: 'Conversa não encontrada' });
 
-    // Deleta registros dependentes antes da conversa
-    await query(`DELETE FROM leads WHERE conversation_id = $1`, [id]);
+    // Deleta todos os registros dependentes antes da conversa
+    await query(`DELETE FROM tool_calls WHERE conversation_id = $1`, [id]);
     await query(`DELETE FROM handoffs WHERE conversation_id = $1`, [id]);
+    await query(`DELETE FROM leads WHERE conversation_id = $1`, [id]);
+    await query(`DELETE FROM orders WHERE conversation_id = $1`, [id]);
+    await query(`DELETE FROM service_orders WHERE conversation_id = $1`, [id]);
+    await query(`DELETE FROM trade_evaluations WHERE conversation_id = $1`, [id]);
     await query(`DELETE FROM messages WHERE conversation_id = $1`, [id]);
     await query(`DELETE FROM conversations WHERE id = $1 AND tenant_id = $2`, [id, req.tenantId]);
 
