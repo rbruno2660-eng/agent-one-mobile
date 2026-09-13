@@ -181,6 +181,58 @@ router.post('/tenants/:id/reset-owner-password', async (req, res) => {
 });
 
 // ──────────────────────────────────────────────
+// POST /superadmin/tenants/:id/activate
+// Ativa/atualiza canal WhatsApp e cria agente
+// ──────────────────────────────────────────────
+router.post('/tenants/:id/activate', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const schema = z.object({
+      phone_id: z.string().min(1),
+      phone_number: z.string().min(1),
+      whatsapp_token: z.string().min(10),
+    });
+    const { phone_id, phone_number, whatsapp_token } = schema.parse(req.body);
+
+    const tenant = await query(`SELECT id FROM tenants WHERE id = $1`, [id]);
+    if (!tenant.rows.length) return res.status(404).json({ error: 'Tenant não encontrado' });
+
+    // Upsert canal WhatsApp
+    const existing = await query(`SELECT id FROM channels WHERE tenant_id = $1 LIMIT 1`, [id]);
+    if (existing.rows.length > 0) {
+      await query(
+        `UPDATE channels
+         SET phone_id = $1, phone_number = $2, status = 'active',
+             settings = settings || $3::jsonb, updated_at = NOW()
+         WHERE tenant_id = $4`,
+        [phone_id, phone_number, JSON.stringify({ access_token: whatsapp_token }), id]
+      );
+    } else {
+      await query(
+        `INSERT INTO channels (tenant_id, provider, phone_id, phone_number, status, settings)
+         VALUES ($1, 'whatsapp', $2, $3, 'active', $4::jsonb)`,
+        [id, phone_id, phone_number, JSON.stringify({ access_token: whatsapp_token })]
+      );
+    }
+
+    // Cria agent row se ainda não existir
+    const agentExists = await query(`SELECT id FROM agents WHERE tenant_id = $1`, [id]);
+    if (!agentExists.rows.length) {
+      await query(
+        `INSERT INTO agents (tenant_id, name, persona, tone, status)
+         VALUES ($1, 'Sofia', 'Atendente virtual especialista em celulares e acessórios', 'professional', 'active')`,
+        [id]
+      );
+    }
+
+    res.json({ ok: true, message: 'Cliente ativado com sucesso' });
+  } catch (err) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: 'Dados inválidos', details: err.errors });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ──────────────────────────────────────────────
 // GET /superadmin/tenants/:id/metrics
 // Métricas de uso dos últimos 30 dias
 // ──────────────────────────────────────────────

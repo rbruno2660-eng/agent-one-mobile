@@ -1,14 +1,15 @@
 /**
  * Cliente para a WhatsApp Business Platform (Meta).
  * Usa fetch nativo do Node.js v18+ (sem dependência externa).
- * Todas as chamadas exigem WHATSAPP_TOKEN no env.
+ * Token: usa o token do tenant (channels.settings.access_token) quando disponível,
+ * com fallback para WHATSAPP_TOKEN no env (compatibilidade retroativa).
  */
 
 const BASE_URL = 'https://graph.facebook.com/v19.0';
 
-function getHeaders() {
+function getHeaders(token) {
   return {
-    Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+    Authorization: `Bearer ${token || process.env.WHATSAPP_TOKEN}`,
     'Content-Type': 'application/json',
   };
 }
@@ -18,8 +19,9 @@ function getHeaders() {
  * @param {string} phoneId - ID do número (WABA phone_id)
  * @param {string} to - número do destinatário (ex: 5511999999999)
  * @param {string} text - texto a enviar
+ * @param {string} [token] - access token do tenant (sobrepõe env var)
  */
-async function sendText(phoneId, to, text) {
+async function sendText(phoneId, to, text, token) {
   const url = `${BASE_URL}/${phoneId}/messages`;
   const payload = {
     messaging_product: 'whatsapp',
@@ -32,7 +34,7 @@ async function sendText(phoneId, to, text) {
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: getHeaders(),
+      headers: getHeaders(token),
       body: JSON.stringify(payload),
     });
     const data = await res.json();
@@ -45,8 +47,9 @@ async function sendText(phoneId, to, text) {
 
 /**
  * Envia template aprovado pelo Meta.
+ * @param {string} [token] - access token do tenant
  */
-async function sendTemplate(phoneId, to, templateName, language = 'pt_BR', components = []) {
+async function sendTemplate(phoneId, to, templateName, language = 'pt_BR', components = [], token) {
   const url = `${BASE_URL}/${phoneId}/messages`;
   const payload = {
     messaging_product: 'whatsapp',
@@ -58,7 +61,7 @@ async function sendTemplate(phoneId, to, templateName, language = 'pt_BR', compo
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: getHeaders(),
+      headers: getHeaders(token),
       body: JSON.stringify(payload),
     });
     const data = await res.json();
@@ -71,13 +74,14 @@ async function sendTemplate(phoneId, to, templateName, language = 'pt_BR', compo
 
 /**
  * Marca mensagem como lida.
+ * @param {string} [token] - access token do tenant
  */
-async function markAsRead(phoneId, messageId) {
+async function markAsRead(phoneId, messageId, token) {
   const url = `${BASE_URL}/${phoneId}/messages`;
   try {
     await fetch(url, {
       method: 'POST',
-      headers: getHeaders(),
+      headers: getHeaders(token),
       body: JSON.stringify({
         messaging_product: 'whatsapp',
         status: 'read',

@@ -21,12 +21,37 @@ export default function TenantDetail() {
   const [loading, setLoading] = useState(true);
   const [resetPass, setResetPass] = useState('');
   const [resetting, setResetting] = useState(false);
+  const [activating, setActivating] = useState(false);
+  const [activateForm, setActivateForm] = useState({ phone_id: '', phone_number: '', whatsapp_token: '' });
 
   useEffect(() => {
     const user = (() => { try { return JSON.parse(localStorage.getItem('sa_user') || 'null'); } catch { return null; } })();
     if (!user?.isSuperAdmin) { router.replace('/superadmin/login'); return; }
     if (id) fetchData();
   }, [id]);
+
+  async function handleActivate(e) {
+    e.preventDefault();
+    if (!activateForm.phone_id || !activateForm.phone_number || !activateForm.whatsapp_token) {
+      toast.error('Preencha todos os campos');
+      return;
+    }
+    setActivating(true);
+    try {
+      await api.post(`/superadmin/tenants/${id}/activate`, {
+        phone_id: activateForm.phone_id.trim(),
+        phone_number: activateForm.phone_number.trim(),
+        whatsapp_token: activateForm.whatsapp_token.trim(),
+      });
+      toast.success('✅ Cliente ativado! Canal WhatsApp configurado.');
+      setActivateForm({ phone_id: '', phone_number: '', whatsapp_token: '' });
+      fetchData();
+    } catch {
+      toast.error('Erro ao ativar cliente');
+    } finally {
+      setActivating(false);
+    }
+  }
 
   async function fetchData() {
     try {
@@ -112,19 +137,77 @@ export default function TenantDetail() {
 
         {/* Canal WhatsApp */}
         <div className="rounded-2xl border p-6" style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
-          <h2 className="font-semibold mb-4">Canal WhatsApp</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold">Canal WhatsApp</h2>
+            {channel && (
+              <span className="text-xs px-2 py-1 rounded-full font-semibold"
+                style={{ background: channel.status === 'active' ? '#16a34a22' : '#ca8a0422', color: channel.status === 'active' ? '#4ade80' : '#facc15' }}>
+                {channel.status === 'active' ? 'Ativo' : channel.status}
+              </span>
+            )}
+          </div>
           {channel ? (
             <div className="text-sm space-y-1" style={{ color: 'var(--muted)' }}>
               <div>Provider: <span className="text-white">{channel.provider}</span></div>
               <div>Phone ID: <span className="text-white">{channel.phone_id || '—'}</span></div>
               <div>Número: <span className="text-white">{channel.phone_number || '—'}</span></div>
-              <div>Status: <span className="text-white">{channel.status}</span></div>
             </div>
           ) : (
             <div className="text-sm" style={{ color: 'var(--muted)' }}>
-              Nenhum canal configurado — aguardando dados do cliente.
+              Nenhum canal configurado ainda.
             </div>
           )}
+        </div>
+
+        {/* Ativar Canal WhatsApp */}
+        <div className="rounded-2xl border p-6" style={{ background: 'var(--bg2)', borderColor: '#7c3aed55' }}>
+          <h2 className="font-semibold mb-1">{channel ? '🔄 Atualizar Canal WhatsApp' : '🚀 Ativar Canal WhatsApp'}</h2>
+          <p className="text-xs mb-4" style={{ color: 'var(--muted)' }}>
+            Preencha os dados do Meta Business para ligar o canal deste tenant.
+          </p>
+          <form onSubmit={handleActivate} className="space-y-3">
+            <div>
+              <label className="text-xs mb-1 block" style={{ color: 'var(--muted)' }}>Phone Number ID (Meta Business)</label>
+              <input
+                type="text"
+                value={activateForm.phone_id}
+                onChange={e => setActivateForm(f => ({ ...f, phone_id: e.target.value }))}
+                placeholder={channel?.phone_id || 'ex: 123456789012345'}
+                className="w-full px-4 py-3 rounded-xl text-sm text-white border outline-none focus:border-purple-500 transition"
+                style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
+              />
+            </div>
+            <div>
+              <label className="text-xs mb-1 block" style={{ color: 'var(--muted)' }}>Número WhatsApp</label>
+              <input
+                type="text"
+                value={activateForm.phone_number}
+                onChange={e => setActivateForm(f => ({ ...f, phone_number: e.target.value }))}
+                placeholder={channel?.phone_number || 'ex: 5511999999999'}
+                className="w-full px-4 py-3 rounded-xl text-sm text-white border outline-none focus:border-purple-500 transition"
+                style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
+              />
+            </div>
+            <div>
+              <label className="text-xs mb-1 block" style={{ color: 'var(--muted)' }}>Access Token (Meta — Token Permanente)</label>
+              <input
+                type="password"
+                value={activateForm.whatsapp_token}
+                onChange={e => setActivateForm(f => ({ ...f, whatsapp_token: e.target.value }))}
+                placeholder="EAAxxxxxxxxxxxxxxxx..."
+                className="w-full px-4 py-3 rounded-xl text-sm text-white border outline-none focus:border-purple-500 transition"
+                style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={activating}
+              className="w-full py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition"
+              style={{ background: 'linear-gradient(135deg, #7c3aed, #6d28d9)' }}
+            >
+              {activating ? 'Ativando...' : (channel ? 'Atualizar Canal' : 'Ativar Cliente')}
+            </button>
+          </form>
         </div>
 
         {/* Usuários */}

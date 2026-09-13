@@ -107,7 +107,15 @@ async function processInbound({ tenantId, phoneId, from, name, message }) {
     return { skipped: true, reason: 'handoff_or_closed' };
   }
 
-  const sent = await whatsappService.sendText(phoneId, from, reply);
+  // Busca token do tenant (channels.settings.access_token), fallback para env var
+  const { query: dbQuery } = require('../db/pool');
+  const channelRow = await dbQuery(
+    `SELECT settings FROM channels WHERE tenant_id = $1 AND status = 'active' LIMIT 1`,
+    [tenantId]
+  );
+  const channelToken = channelRow.rows[0]?.settings?.access_token || null;
+
+  const sent = await whatsappService.sendText(phoneId, from, reply, channelToken);
 
   // Persiste resposta enviada
   await conversationService.saveMessage({
