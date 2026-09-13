@@ -55,7 +55,7 @@ router.get('/tenants/:id', async (req, res) => {
     );
 
     const channel = await query(
-      `SELECT id, provider, phone_number_id, status FROM channels WHERE tenant_id = $1 LIMIT 1`,
+      `SELECT id, provider, phone_id, phone_number, status FROM channels WHERE tenant_id = $1 LIMIT 1`,
       [id]
     );
 

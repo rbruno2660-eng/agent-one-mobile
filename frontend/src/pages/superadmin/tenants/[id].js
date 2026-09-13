@@ -116,7 +116,8 @@ export default function TenantDetail() {
           {channel ? (
             <div className="text-sm space-y-1" style={{ color: 'var(--muted)' }}>
               <div>Provider: <span className="text-white">{channel.provider}</span></div>
-              <div>Phone Number ID: <span className="text-white">{channel.phone_number_id || '—'}</span></div>
+              <div>Phone ID: <span className="text-white">{channel.phone_id || '—'}</span></div>
+              <div>Número: <span className="text-white">{channel.phone_number || '—'}</span></div>
               <div>Status: <span className="text-white">{channel.status}</span></div>
             </div>
           ) : (
