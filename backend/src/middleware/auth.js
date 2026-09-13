@@ -23,7 +23,7 @@ async function authMiddleware(req, res, next) {
 
     // Busca usuário ativo
     const result = await query(
-      `SELECT id, tenant_id, name, email, role, status FROM users WHERE id = $1`,
+      `SELECT id, tenant_id, name, email, role, status, is_superadmin FROM users WHERE id = $1`,
       [payload.userId]
     );
 

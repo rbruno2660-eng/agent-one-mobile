@@ -1,0 +1,51 @@
+(node:20592) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Users before fix: [
+  {
+    "id": "de39c104-23ef-406b-8042-9ceae507b81b",
+    "email": "admin@loja.com",
+    "role": "owner",
+    "tenant_id": "bcf0cb7b-97be-4621-90d5-b03955c488af"
+  },
+  {
+    "id": "ea5639bb-9b46-48b3-b3d2-03a5e18b01c5",
+    "email": "admin@loja.com",
+    "role": "owner",
+    "tenant_id": "c881b2e0-3526-48ad-8a76-56d4af15e13c"
+  }
+]
+Conversations per tenant: [
+  {
+    "tenant_id": "bcf0cb7b-97be-4621-90d5-b03955c488af",
+    "count": "3"
+  }
+]
+Reassigned 0 rows in knowledge_documents.created_by
+Reassigned 0 rows in conversations.assigned_user_id
+Reassigned 0 rows in audit_logs.actor_id
+Refresh tokens deleted for ghost user ea5639bb-9b46-48b3-b3d2-03a5e18b01c5
+Deleted ghost user: [
+  {
+    "id": "ea5639bb-9b46-48b3-b3d2-03a5e18b01c5",
+    "email": "admin@loja.com",
+    "tenant_id": "c881b2e0-3526-48ad-8a76-56d4af15e13c"
+  }
+]
+Refresh tokens cleared for real user de39c104
+Users in real tenant after fix: [
+  {
+    "id": "de39c104-23ef-406b-8042-9ceae507b81b",
+    "email": "admin@loja.com",
+    "role": "owner",
+    "tenant_id": "bcf0cb7b-97be-4621-90d5-b03955c488af"
+  }
+]
+
+Done. Please log out and log back in on the web panel.

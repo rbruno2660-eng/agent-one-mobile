@@ -61,6 +61,9 @@ app.get('/health', (req, res) => {
 });
 
 // ─── Rotas ────────────────────────────────────
+const superadminMiddleware = require('./middleware/superadmin');
+app.use('/superadmin', superadminMiddleware, require('./routes/superadmin'));
+
 app.use('/auth', authLimiter, require('./routes/auth'));
 app.use('/users', require('./routes/users'));
 app.use('/products', require('./routes/products'));

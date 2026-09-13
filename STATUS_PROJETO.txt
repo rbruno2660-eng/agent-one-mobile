@@ -1,35 +1,56 @@
 ======================================
-  PROXIMO PASSO - SUBIR PARA GITHUB
+  AGENT ONE MOBILE STORE - ONLINE!
 ======================================
 
-O repositorio GitHub ja foi criado:
-https://github.com/rbruno2660-eng/agent-one-mobile
+BACKEND (Railway):
+  URL: https://agent-one-mobile-production.up.railway.app
+  Health: {"status":"ok"} ✅
+  Projeto: unique-stillness
+  Root Dir: /backend
+  Start: node src/server.js
 
-AGORA FACA ISSO:
+FRONTEND (Vercel):
+  URL: https://agent-one-mobile.vercel.app
+  Status: Ready ✅
+  Root Dir: frontend/
+  Framework: Next.js
 
-  Duplo clique em: GIT_SUBIR.bat
-  (esta nesta mesma pasta agent-one-mobile)
-
-O bat vai:
-  1. Reinicializar o git corretamente
-  2. Adicionar todos os arquivos
-  3. Fazer o commit
-  4. Enviar para o GitHub
-
-Se aparecer janela de login do GitHub:
-  → Faca login normalmente
-  → O Windows vai salvar a senha automaticamente
-
-Depois que terminar, me avise!
-Proximos passos: configurar Railway e Vercel.
+GITHUB:
+  https://github.com/rbruno2660-eng/agent-one-mobile
 
 ======================================
-  STATUS DO APP
+  CREDENCIAIS DE ACESSO
 ======================================
 
-  Backend:  http://localhost:3001  OK
-  Frontend: http://localhost:3000  OK
-  Login:    admin@loja.com / Admin@2025
-  GitHub:   https://github.com/rbruno2660-eng/agent-one-mobile
+  Login: admin@loja.com
+  Senha: Admin@2025
+
+======================================
+  VARIAVEIS CONFIGURADAS (Railway)
+======================================
+
+  DATABASE_URL    = Neon.tech PostgreSQL
+  JWT_SECRET      = (configurado)
+  ANTHROPIC_API_KEY = (configurado)
+  FRONTEND_URL    = https://agent-one-mobile.vercel.app
+  CLAUDE_MODEL    = claude-haiku-4-5-20251001
+  NODE_ENV        = production
+
+======================================
+  PENDENTES (quando tiver numero Meta)
+======================================
+
+  WHATSAPP_TOKEN     = PREENCHER_DEPOIS
+  WHATSAPP_PHONE_ID  = PREENCHER_DEPOIS
+  WHATSAPP_APP_SECRET = PREENCHER_DEPOIS
+
+======================================
+  AUTO DEPLOY
+======================================
+
+  Qualquer push para a branch main
+  atualiza automaticamente:
+  - Backend (Railway)
+  - Frontend (Vercel)
 
 ======================================

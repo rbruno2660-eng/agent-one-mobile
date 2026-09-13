@@ -3,28 +3,29 @@ const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const { query } = require('../db/pool');
 
-function generateAccessToken(userId, tenantId, role) {
+function generateAccessToken(userId, tenantId, role, isSuperAdmin = false) {
   return jwt.sign(
-    { userId, tenantId, role },
+    { userId, tenantId, role, isSuperAdmin },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
   );
 }
 
-function generateRefreshToken(userId, tenantId, role) {
+function generateRefreshToken(userId, tenantId, role, isSuperAdmin = false) {
   return jwt.sign(
-    { userId, tenantId, role },
+    { userId, tenantId, role, isSuperAdmin },
     process.env.JWT_REFRESH_SECRET,
     { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d' }
   );
 }
 
 async function login(email, password) {
-  // Busca usuário pelo email (qualquer tenant)
+  // Busca usuário pelo email — inclui superadmin (sem tenant)
   const result = await query(
-    `SELECT u.*, t.status AS tenant_status
+    `SELECT u.*,
+            CASE WHEN u.is_superadmin THEN 'active' ELSE t.status END AS tenant_status
      FROM users u
-     JOIN tenants t ON t.id = u.tenant_id
+     LEFT JOIN tenants t ON t.id = u.tenant_id
      WHERE u.email = $1 AND u.status = 'active'
      LIMIT 1`,
     [email.toLowerCase().trim()]
@@ -36,7 +37,7 @@ async function login(email, password) {
 
   const user = result.rows[0];
 
-  if (user.tenant_status !== 'active') {
+  if (!user.is_superadmin && user.tenant_status !== 'active') {
     throw new Error('Conta suspensa. Entre em contato com o suporte.');
   }
 
@@ -45,8 +46,9 @@ async function login(email, password) {
     throw new Error('Credenciais inválidas');
   }
 
-  const accessToken = generateAccessToken(user.id, user.tenant_id, user.role);
-  const refreshToken = generateRefreshToken(user.id, user.tenant_id, user.role);
+  const isSuperAdmin = user.is_superadmin === true;
+  const accessToken = generateAccessToken(user.id, user.tenant_id, user.role, isSuperAdmin);
+  const refreshToken = generateRefreshToken(user.id, user.tenant_id, user.role, isSuperAdmin);
 
   // Persiste refresh token
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -67,6 +69,7 @@ async function login(email, password) {
       email: user.email,
       role: user.role,
       tenantId: user.tenant_id,
+      isSuperAdmin,
     },
   };
 }
@@ -96,7 +99,9 @@ async function refresh(refreshToken) {
     throw new Error('Usuário inativo');
   }
 
-  const newAccessToken = generateAccessToken(payload.userId, payload.tenantId, row.role);
+  const newAccessToken = generateAccessToken(
+    payload.userId, payload.tenantId, row.role, payload.isSuperAdmin || false
+  );
   return { accessToken: newAccessToken };
 }
 
