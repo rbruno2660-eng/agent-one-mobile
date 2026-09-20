@@ -55,7 +55,7 @@ router.get('/tenants/:id', async (req, res) => {
     );
 
     const channel = await query(
-      `SELECT id, provider, phone_id, phone_number, status FROM channels WHERE tenant_id = $1 LIMIT 1`,
+      `SELECT id, provider, phone_id, phone_number, status, settings FROM channels WHERE tenant_id = $1 LIMIT 1`,
       [id]
     );
 
@@ -250,6 +250,41 @@ router.get('/tenants/:id/metrics', async (req, res) => {
       WHERE cv.tenant_id = $1
     `, [id]);
     res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ──────────────────────────────────────────────
+// DELETE /superadmin/tenants/:id
+// Remove tenant e todos os dados vinculados
+// ──────────────────────────────────────────────
+router.delete('/tenants/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenant = await query(`SELECT id, name FROM tenants WHERE id = $1`, [id]);
+    if (!tenant.rows.length) return res.status(404).json({ error: 'Tenant não encontrado' });
+
+    const client = await require('../db/pool').pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`DELETE FROM messages      WHERE tenant_id = $1`, [id]);
+      await client.query(`DELETE FROM conversations WHERE tenant_id = $1`, [id]);
+      await client.query(`DELETE FROM contacts      WHERE tenant_id = $1`, [id]);
+      await client.query(`DELETE FROM products      WHERE tenant_id = $1`, [id]);
+      await client.query(`DELETE FROM agents        WHERE tenant_id = $1`, [id]);
+      await client.query(`DELETE FROM channels      WHERE tenant_id = $1`, [id]);
+      await client.query(`DELETE FROM refresh_tokens WHERE user_id IN (SELECT id FROM users WHERE tenant_id = $1)`, [id]);
+      await client.query(`DELETE FROM users         WHERE tenant_id = $1`, [id]);
+      await client.query(`DELETE FROM tenants       WHERE id = $1`, [id]);
+      await client.query('COMMIT');
+      res.json({ ok: true, message: `Tenant "${tenant.rows[0].name}" deletado com sucesso` });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
