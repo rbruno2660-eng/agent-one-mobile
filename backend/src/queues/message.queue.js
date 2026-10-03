@@ -67,7 +67,7 @@ async function processInbound({ tenantId, phoneId, from, name, message }) {
       const transcript = await transcribeAudio(message.audio.id);
       if (transcript) {
         content = `[Áudio]: ${transcript}`;
-        console.log(`[Transcription] Áudio transcrito: "${transcript.slice(0, 80)}..."`);
+        console.log(`[Transcription] Áudio transcrito com sucesso, chars: ${transcript.length}`);
       }
     } catch (err) {
       console.warn('[Transcription] Falha ao transcrever áudio:', err.message);

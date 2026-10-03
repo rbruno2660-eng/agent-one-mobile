@@ -3,6 +3,18 @@ const productService = require('../services/product.service');
 const conversationService = require('../services/conversation.service');
 const whatsappService = require('../services/whatsapp.service');
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Valida que um valor é um UUID bem-formado.
+ * Lança TypeError com mensagem segura caso contrário.
+ */
+function assertUUID(value, fieldName) {
+  if (typeof value !== 'string' || !UUID_RE.test(value)) {
+    throw new TypeError(`Campo '${fieldName}' deve ser um UUID válido`);
+  }
+}
+
 /**
  * Executa uma tool chamada pelo agente.
  * REGRA: nenhuma tool deve executar lógica arbitrária.
@@ -40,11 +52,13 @@ async function executeTool(toolName, input, context) {
       }
 
       case 'get_product_price': {
+        assertUUID(input.product_id, 'product_id');
         output = await productService.getProductPrice(tenantId, input.product_id, input.payment_method || 'all');
         break;
       }
 
       case 'check_stock': {
+        assertUUID(input.product_id, 'product_id');
         const result = await query(
           `SELECT (i.quantity - i.reserved) AS available
            FROM inventory i WHERE i.product_id = $1`,
@@ -57,11 +71,13 @@ async function executeTool(toolName, input, context) {
       }
 
       case 'check_discount': {
+        assertUUID(input.product_id, 'product_id');
         output = await productService.checkDiscount(tenantId, input.product_id, input.proposed_price);
         break;
       }
 
       case 'calculate_installment': {
+        assertUUID(input.product_id, 'product_id');
         const priceResult = await query(
           `SELECT pp.id FROM product_prices pp
            JOIN price_books pb ON pb.id = pp.price_book_id
@@ -86,9 +102,9 @@ async function executeTool(toolName, input, context) {
           `SELECT model, storage, base_value, min_value, max_value FROM trade_rules
            WHERE tenant_id = $1 AND active = true
              AND model ILIKE $2
-             ${input.storage ? 'AND (storage ILIKE $3 OR storage IS NULL)' : ''}
+             AND ($3::text IS NULL OR storage ILIKE $3)
            ORDER BY storage NULLS LAST LIMIT 5`,
-          input.storage ? [tenantId, `%${input.model}%`, `%${input.storage}%`] : [tenantId, `%${input.model}%`]
+          [tenantId, `%${input.model}%`, input.storage ? `%${input.storage}%` : null]
         );
         if (result.rows.length === 0) {
           output = { found: false, message: 'Modelo não encontrado na tabela de trocas. Um atendente humano fará a avaliação.' };
@@ -202,6 +218,7 @@ async function executeTool(toolName, input, context) {
       }
 
       case 'create_lead': {
+        assertUUID(input.product_id, 'product_id');
         const existing = await query(
           `SELECT id FROM leads WHERE tenant_id = $1 AND contact_id = $2 AND product_id = $3 AND stage != 'lost'`,
           [tenantId, contactId, input.product_id]

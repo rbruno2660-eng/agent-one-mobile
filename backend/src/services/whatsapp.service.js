@@ -101,7 +101,12 @@ async function markAsRead(phoneId, messageId, token) {
 function verifySignature(rawBody, signature) {
   const crypto = require('crypto');
   const secret = process.env.WHATSAPP_APP_SECRET;
-  if (!secret) return true; // pular em dev se não configurado
+  if (!secret) {
+    throw new Error(
+      '[Config] WHATSAPP_APP_SECRET não está configurado — ' +
+      'verificação de assinatura do webhook impossível. Configure a variável de ambiente.'
+    );
+  }
 
   const expected = 'sha256=' + crypto
     .createHmac('sha256', secret)

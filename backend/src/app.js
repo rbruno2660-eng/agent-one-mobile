@@ -38,6 +38,15 @@ const authLimiter = rateLimit({
   message: { error: 'Muitas tentativas de login. Aguarde 15 minutos.' },
 });
 
+// Rate limit dedicado para webhook WhatsApp — 60 req/min por IP
+const webhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many webhook requests.' },
+});
+
 // Captura rawBody via verify do express.json (evita double-consume do stream)
 // Necessário para validar assinatura HMAC do webhook WhatsApp
 app.use(express.json({
@@ -71,7 +80,7 @@ app.use('/conversations', require('./routes/conversations'));
 app.use('/trades', require('./routes/trades'));
 app.use('/services', require('./routes/services'));
 app.use('/leads', require('./routes/leads'));
-app.use('/webhooks/whatsapp', require('./routes/whatsapp'));
+app.use('/webhooks/whatsapp', webhookLimiter, require('./routes/whatsapp'));
 
 app.use('/knowledge', require('./routes/knowledge'));
 app.use('/agents', require('./routes/agents'));
@@ -89,14 +98,17 @@ app.use((req, res) => {
 // ─── Error handler ─────────────────────────────
 app.use((err, req, res, next) => {
   const status = err.status || err.statusCode || 500;
-  logger.error({ err, method: req.method, url: req.url, status });
 
-  // Em produção, não vazar mensagens de erro internas (500+) para o cliente
+  // Loga internamente com stack completo — nunca envia para o cliente
+  logger.error({ message: err.message, stack: err.stack, method: req.method, url: req.url, status });
+
+  // Em produção: mensagem genérica para 5xx e sem stack em nenhum caso
   const isProd = process.env.NODE_ENV === 'production';
-  const message = (isProd && status >= 500)
-    ? 'Erro interno do servidor'
-    : (err.message || 'Erro interno');
+  const message = (isProd || status >= 500)
+    ? (status >= 500 ? 'Erro interno do servidor' : err.message || 'Erro')
+    : err.message || 'Erro interno';
 
+  // Garante que jamais enviamos stack trace ou objetos de erro brutos ao cliente
   res.status(status).json({ error: message });
 });
 
