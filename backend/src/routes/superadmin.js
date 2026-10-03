@@ -181,8 +181,32 @@ router.post('/tenants/:id/reset-owner-password', async (req, res) => {
 });
 
 // ──────────────────────────────────────────────
+// Helper: registra o número na WhatsApp Cloud API
+// Necessário uma vez para sair do status "Pendente"
+// ──────────────────────────────────────────────
+async function registerWhatsAppPhone(phone_id, whatsapp_token, pin = '000000') {
+  const resp = await fetch(
+    `https://graph.facebook.com/v18.0/${phone_id}/register`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${whatsapp_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        pin,
+      }),
+    }
+  );
+  const data = await resp.json();
+  return { ok: resp.ok, status: resp.status, data };
+}
+
+// ──────────────────────────────────────────────
 // POST /superadmin/tenants/:id/activate
-// Ativa/atualiza canal WhatsApp e cria agente
+// Ativa/atualiza canal WhatsApp, cria agente e
+// registra o número na Cloud API (tira do Pendente)
 // ──────────────────────────────────────────────
 router.post('/tenants/:id/activate', async (req, res) => {
   try {
@@ -191,8 +215,9 @@ router.post('/tenants/:id/activate', async (req, res) => {
       phone_id: z.string().min(1),
       phone_number: z.string().min(1),
       whatsapp_token: z.string().min(10),
+      pin: z.string().length(6).default('000000'), // PIN 2FA do número (6 dígitos)
     });
-    const { phone_id, phone_number, whatsapp_token } = schema.parse(req.body);
+    const { phone_id, phone_number, whatsapp_token, pin } = schema.parse(req.body);
 
     const tenant = await query(`SELECT id FROM tenants WHERE id = $1`, [id]);
     if (!tenant.rows.length) return res.status(404).json({ error: 'Tenant não encontrado' });
@@ -225,9 +250,62 @@ router.post('/tenants/:id/activate', async (req, res) => {
       );
     }
 
-    res.json({ ok: true, message: 'Cliente ativado com sucesso' });
+    // Registrar número na WhatsApp Cloud API (tira do status "Pendente")
+    const regResult = await registerWhatsAppPhone(phone_id, whatsapp_token, pin);
+    if (!regResult.ok) {
+      console.warn(`[activate] WhatsApp register warning para ${phone_id}:`, regResult.data);
+    }
+
+    res.json({
+      ok: true,
+      message: 'Cliente ativado com sucesso',
+      whatsapp_register: regResult.ok
+        ? 'Número registrado na Cloud API com sucesso'
+        : `Aviso no registro: ${regResult.data?.error?.message || 'erro desconhecido'}`,
+    });
   } catch (err) {
     if (err.name === 'ZodError') return res.status(400).json({ error: 'Dados inválidos', details: err.errors });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ──────────────────────────────────────────────
+// POST /superadmin/tenants/:id/register-phone
+// Registra (ou re-registra) o número WhatsApp na
+// Cloud API — útil para números que ficaram "Pendente"
+// Body: { pin?: string } (opcional, default "000000")
+// ──────────────────────────────────────────────
+router.post('/tenants/:id/register-phone', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { pin = '000000' } = req.body;
+
+    const channel = await query(
+      `SELECT phone_id, settings FROM channels WHERE tenant_id = $1 AND provider = 'whatsapp' LIMIT 1`,
+      [id]
+    );
+    if (!channel.rows.length) return res.status(404).json({ error: 'Canal WhatsApp não encontrado para este tenant' });
+
+    const { phone_id, settings } = channel.rows[0];
+    const access_token = settings?.access_token;
+    if (!access_token) return res.status(400).json({ error: 'Token de acesso não encontrado no canal' });
+
+    const regResult = await registerWhatsAppPhone(phone_id, access_token, pin);
+
+    if (!regResult.ok) {
+      return res.status(regResult.status).json({
+        ok: false,
+        message: 'Falha no registro do número',
+        meta_error: regResult.data,
+      });
+    }
+
+    res.json({
+      ok: true,
+      message: `Número ${phone_id} registrado com sucesso na WhatsApp Cloud API`,
+      data: regResult.data,
+    });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
