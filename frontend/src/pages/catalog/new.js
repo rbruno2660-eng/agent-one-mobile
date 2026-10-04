@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
-import { ChevronLeft, Plus, Trash2 } from 'lucide-react';
+import { ChevronLeft, Plus, Trash2, Upload, X } from 'lucide-react';
 
 function Field({ label, required, children }) {
   return (
@@ -50,9 +50,37 @@ const IPHONE_MODELS = [
 
 const STORAGES = ['64GB','128GB','256GB','512GB','1TB'];
 
+function resizeImage(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 600;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+          else { width = Math.round(width * MAX / height); height = MAX; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function NewProductPage() {
   const router = useRouter();
+  const fileRef = useRef(null);
   const [loading, setLoading] = useState(false);
+  const [imagePreview, setImagePreview] = useState('');
   const [form, setForm] = useState({
     model: '',
     variant: '',
@@ -72,6 +100,25 @@ export default function NewProductPage() {
 
   function set(field, value) {
     setForm(prev => ({ ...prev, [field]: value }));
+  }
+
+  async function handleImageFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return toast.error('Selecione um arquivo de imagem');
+    try {
+      const dataUrl = await resizeImage(file);
+      setImagePreview(dataUrl);
+      set('image_url', dataUrl);
+    } catch {
+      toast.error('Erro ao processar imagem');
+    }
+  }
+
+  function removeImage() {
+    setImagePreview('');
+    set('image_url', '');
+    if (fileRef.current) fileRef.current.value = '';
   }
 
   function addInstallment() {
@@ -129,7 +176,6 @@ export default function NewProductPage() {
       <h1 className="text-xl font-bold text-white mb-6">Novo produto</h1>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Identificação */}
         <Section title="Identificação">
           <div className="grid grid-cols-2 gap-4">
             <Field label="Modelo" required>
@@ -177,38 +223,58 @@ export default function NewProductPage() {
               <Input value={form.warranty} onChange={e => set('warranty', e.target.value)} placeholder="Ex: 12 meses Apple" />
             </Field>
           </div>
+
           <div className="mt-4">
-            <Field label="URL da foto do produto">
-              <Input
-                type="url"
-                value={form.image_url}
-                onChange={e => set('image_url', e.target.value)}
-                placeholder="https://... (link da imagem do aparelho)"
-              />
-            </Field>
-            {form.image_url && (
-              <div className="mt-3 flex items-center gap-3">
+            <label className="block text-sm mb-2 font-medium" style={{ color: 'var(--muted)' }}>Foto do produto</label>
+            {imagePreview ? (
+              <div className="flex items-center gap-4">
                 <img
-                  src={form.image_url}
+                  src={imagePreview}
                   alt="Preview"
-                  className="w-16 h-16 object-contain rounded-xl border"
+                  className="w-24 h-24 object-contain rounded-xl border"
                   style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}
-                  onError={e => { e.target.style.display = 'none'; }}
                 />
-                <span className="text-xs" style={{ color: 'var(--muted)' }}>Preview da imagem</span>
+                <div>
+                  <p className="text-sm text-white mb-2">Imagem carregada ✓</p>
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    className="flex items-center gap-1.5 text-sm text-red-400 hover:text-red-300 transition"
+                  >
+                    <X size={14} /> Remover
+                  </button>
+                </div>
               </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                className="flex items-center gap-2 px-4 py-3 rounded-xl border text-sm transition hover:bg-white/5"
+                style={{ borderColor: 'var(--border)', color: 'var(--muted)', borderStyle: 'dashed' }}
+              >
+                <Upload size={16} />
+                Selecionar foto do aparelho
+              </button>
             )}
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageFile}
+            />
+            <p className="text-xs mt-2" style={{ color: 'var(--muted)' }}>
+              JPG, PNG ou WEBP. A imagem é convertida e comprimida automaticamente.
+            </p>
           </div>
         </Section>
 
-        {/* Estoque */}
         <Section title="Estoque">
           <Field label="Quantidade disponível" required>
             <Input type="number" min="0" value={form.quantity} onChange={e => set('quantity', e.target.value)} />
           </Field>
         </Section>
 
-        {/* Preços */}
         <Section title="Preços">
           <div className="grid grid-cols-2 gap-4">
             <Field label="Preço tabela (referência)">
@@ -229,7 +295,6 @@ export default function NewProductPage() {
           </p>
         </Section>
 
-        {/* Parcelamento */}
         <Section title="Parcelamento (opcional)">
           <div className="space-y-2">
             {installments.map((inst, idx) => (
