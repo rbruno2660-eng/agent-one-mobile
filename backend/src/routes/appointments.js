@@ -7,7 +7,7 @@
 const router = require('express').Router();
 const { query } = require('../db/pool');
 const authMiddleware = require('../middleware/auth');
-const requireRole = require('../middleware/role');
+const requireRole = require('../middleware/rbac');
 
 // Todas as rotas exigem autenticação
 router.use(authMiddleware);
