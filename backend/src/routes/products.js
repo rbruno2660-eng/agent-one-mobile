@@ -194,4 +194,108 @@ router.post('/import', requireRole('manager'), async (req, res) => {
   }
 });
 
+// ─── POST /products/:id/flash-sale ─────────────────────────────
+// Dispara notificação de promoção relâmpago para leads interessados no produto
+router.post('/:id/flash-sale', requireRole('manager'), async (req, res) => {
+  try {
+    const schema = z.object({
+      new_price: z.number().positive(),
+      expires_at: z.string().datetime().optional(), // ISO string ex: "2026-10-04T23:59:00Z"
+      message_template: z.string().max(500).optional(),
+    });
+    const data = schema.parse(req.body);
+
+    // Valida produto
+    const productResult = await query(
+      `SELECT id, name, brand, storage, category FROM products WHERE id = $1 AND tenant_id = $2`,
+      [req.params.id, req.tenantId]
+    );
+    if (!productResult.rows.length) return res.status(404).json({ error: 'Produto não encontrado' });
+    const product = productResult.rows[0];
+
+    // Canal ativo do tenant
+    const channelResult = await query(
+      `SELECT phone_id, settings FROM channels WHERE tenant_id = $1 AND status = 'active' LIMIT 1`,
+      [req.tenantId]
+    );
+    if (!channelResult.rows.length) return res.status(400).json({ error: 'Nenhum canal WhatsApp ativo configurado' });
+    const { phone_id: phoneId, settings } = channelResult.rows[0];
+    const token = settings?.access_token || null;
+
+    // Busca leads interessados nesse produto (ou na mesma categoria/modelo)
+    const leadsResult = await query(
+      `SELECT DISTINCT l.id, l.contact_id, ct.phone, ct.name,
+              l.stage, l.follow_up_count
+       FROM leads l
+       JOIN contacts ct ON ct.id = l.contact_id
+       WHERE l.tenant_id = $1
+         AND l.stage NOT IN ('lost', 'won')
+         AND ct.phone IS NOT NULL
+         AND (
+           l.product_id = $2
+           OR l.product_name ILIKE $3
+         )
+       ORDER BY l.id`,
+      [req.tenantId, req.params.id, `%${product.name}%`]
+    );
+
+    const { sendText } = require('../services/whatsapp.service');
+    const priceFormatted = Number(data.new_price).toLocaleString('pt-BR', { minimumFractionDigits: 0 });
+    const productLabel = `${product.name}${product.storage ? ' ' + product.storage : ''}`;
+    const expiryStr = data.expires_at
+      ? `Só até ${new Date(data.expires_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}!`
+      : 'Por tempo limitado!';
+
+    let sent = 0;
+    let errors = 0;
+
+    for (const lead of leadsResult.rows) {
+      try {
+        const firstName = lead.name ? lead.name.split(' ')[0] : null;
+        const greeting = firstName ? `Oi ${firstName}! ` : 'Oi! ';
+
+        const message = data.message_template
+          ? data.message_template
+              .replace('{nome}', firstName || 'cliente')
+              .replace('{produto}', productLabel)
+              .replace('{preco}', priceFormatted)
+              .replace('{validade}', expiryStr)
+          : `${greeting}Lembra que você perguntou sobre o ${productLabel}? 📱\n\n` +
+            `Temos uma PROMOÇÃO RELÂMPAGO: R$ ${priceFormatted} à vista!\n` +
+            `${expiryStr}\n\n` +
+            `Quer garantir o seu? Responda aqui! ⚡`;
+
+        await sendText(phoneId, lead.phone, message, token);
+        sent++;
+
+        // Pequeno delay para não exceder rate limit da Meta (aprox. 1000 msg/dia)
+        await new Promise(r => setTimeout(r, 200));
+      } catch (err) {
+        console.error(`[FlashSale] Erro ao notificar lead ${lead.id}:`, err.message);
+        errors++;
+      }
+    }
+
+    await auditLog({
+      tenantId: req.tenantId,
+      actor: req.user,
+      action: 'flash_sale',
+      entity: 'product',
+      entityId: req.params.id,
+      after: { new_price: data.new_price, leads_notified: sent, leads_errors: errors },
+    });
+
+    res.json({
+      product: productLabel,
+      leads_found: leadsResult.rows.length,
+      sent,
+      errors,
+      message: `Promoção relâmpago enviada para ${sent} lead(s).`,
+    });
+  } catch (err) {
+    if (err.name === 'ZodError') return res.status(400).json({ error: 'Dados inválidos', details: err.errors });
+    res.status(500).json({ error: 'Erro ao disparar flash sale' });
+  }
+});
+
 module.exports = router;

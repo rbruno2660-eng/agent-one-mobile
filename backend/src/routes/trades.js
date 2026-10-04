@@ -4,6 +4,7 @@ const authMiddleware = require('../middleware/auth');
 const { requireRole } = require('../middleware/rbac');
 const { query } = require('../db/pool');
 const { auditLog } = require('../utils/audit');
+const { notifyTradeStatusChange } = require('../services/trade-notification.service');
 
 router.use(authMiddleware);
 
@@ -213,6 +214,13 @@ router.patch('/evaluations/:id', requireRole('manager'), async (req, res) => {
     );
 
     await auditLog({ tenantId: req.tenantId, actor: req.user, action: `trade_evaluation_${data.status}`, entity: 'trade_evaluation', entityId: req.params.id, before: before.rows[0], after: result.rows[0] });
+
+    // Notifica o cliente via WhatsApp se o status mudou
+    const previousStatus = before.rows[0].status;
+    if (previousStatus !== data.status) {
+      notifyTradeStatusChange(req.tenantId, result.rows[0], data.status).catch(() => {});
+    }
+
     res.json(result.rows[0]);
   } catch (err) {
     if (err.name === 'ZodError') return res.status(400).json({ error: 'Dados inválidos' });

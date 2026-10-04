@@ -1,10 +1,89 @@
 const { query } = require('../db/pool');
 
 /**
+ * Carrega histórico relevante do cliente para injetar no prompt.
+ * Busca as últimas 3 conversas fechadas + lead ativo + troca pendente.
+ */
+async function loadClientHistory(tenantId, contactId) {
+  if (!contactId) return null;
+
+  // Últimas conversas fechadas (resumo do interesse)
+  const convResult = await query(
+    `SELECT c.id, c.created_at, c.updated_at,
+            (SELECT content FROM messages
+             WHERE conversation_id = c.id AND direction = 'inbound'
+             ORDER BY created_at ASC LIMIT 1) AS first_message,
+            (SELECT content FROM messages
+             WHERE conversation_id = c.id
+             ORDER BY created_at DESC LIMIT 1) AS last_message
+     FROM conversations c
+     WHERE c.tenant_id = $1 AND c.contact_id = $2
+       AND c.status = 'closed'
+     ORDER BY c.created_at DESC LIMIT 3`,
+    [tenantId, contactId]
+  );
+
+  // Lead ativo do contato
+  const leadResult = await query(
+    `SELECT l.stage, l.score, l.notes, l.created_at,
+            p.name AS product_name, p.brand, p.storage
+     FROM leads l
+     LEFT JOIN products p ON p.id = l.product_id
+     WHERE l.tenant_id = $1 AND l.contact_id = $2
+     ORDER BY l.created_at DESC LIMIT 1`,
+    [tenantId, contactId]
+  );
+
+  // Troca pré-avaliada pendente
+  const tradeResult = await query(
+    `SELECT te.status, te.estimated_value, te.device_model, te.device_storage,
+            te.created_at
+     FROM trade_evaluations te
+     WHERE te.tenant_id = $1 AND te.contact_id = $2
+       AND te.status IN ('pending', 'reviewing')
+     ORDER BY te.created_at DESC LIMIT 1`,
+    [tenantId, contactId]
+  );
+
+  const hasHistory = convResult.rows.length > 0 || leadResult.rows.length > 0 || tradeResult.rows.length > 0;
+  if (!hasHistory) return null;
+
+  const lines = ['## HISTÓRICO DO CLIENTE'];
+  lines.push('Este cliente já entrou em contato antes. Use esse contexto para personalizar o atendimento — não pergunte o que ele já informou.\n');
+
+  if (leadResult.rows.length > 0) {
+    const lead = leadResult.rows[0];
+    const since = new Date(lead.created_at).toLocaleDateString('pt-BR');
+    if (lead.product_name) {
+      lines.push(`INTERESSE REGISTRADO (desde ${since}): ${lead.product_name}${lead.storage ? ' ' + lead.storage : ''} — estágio: ${lead.stage}, score: ${lead.score}/100.`);
+      if (lead.notes) lines.push(`Observações: ${lead.notes}`);
+    }
+  }
+
+  if (tradeResult.rows.length > 0) {
+    const trade = tradeResult.rows[0];
+    const since = new Date(trade.created_at).toLocaleDateString('pt-BR');
+    lines.push(`TROCA PENDENTE (desde ${since}): ${trade.device_model}${trade.device_storage ? ' ' + trade.device_storage : ''} — pré-avaliação em "${trade.status}", valor estimado: ${trade.estimated_value ? 'R$ ' + trade.estimated_value : 'a confirmar'}.`);
+  }
+
+  if (convResult.rows.length > 0) {
+    lines.push('\nCONTATOS ANTERIORES:');
+    for (const conv of convResult.rows) {
+      const date = new Date(conv.created_at).toLocaleDateString('pt-BR');
+      if (conv.first_message) {
+        lines.push(`- ${date}: "${conv.first_message.substring(0, 120)}${conv.first_message.length > 120 ? '...' : ''}"`);
+      }
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
  * Monta o system prompt do Agent One por blocos dinâmicos.
  * Cada bloco é carregado do banco — alterações têm efeito imediato.
  */
-async function buildSystemPrompt(tenantId) {
+async function buildSystemPrompt(tenantId, contactId = null) {
   // Carrega configurações do agent e do tenant
   const agentResult = await query(
     `SELECT a.name, a.persona, a.tone, a.settings,
@@ -133,6 +212,12 @@ NUNCA afirme originalidade de peça sem dado cadastrado.`);
       kb += `\n### ${typeLabel[type] || type}\n${docs.join('\n\n')}`;
     }
     blocks.push(kb);
+  }
+
+  // [11] HISTÓRICO DO CLIENTE (se contactId fornecido e houver histórico)
+  const clientHistory = await loadClientHistory(tenantId, contactId);
+  if (clientHistory) {
+    blocks.push(clientHistory);
   }
 
   return blocks.join('\n\n---\n\n');

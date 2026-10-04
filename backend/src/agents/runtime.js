@@ -37,8 +37,8 @@ async function run(tenantId, conversationId, contact, inboundMessage) {
     return await aiConfigService.getOfflineMessage(tenantId);
   }
 
-  // 2. Monta system prompt
-  const systemPrompt = await buildSystemPrompt(tenantId);
+  // 2. Monta system prompt (com histórico do cliente se for contato recorrente)
+  const systemPrompt = await buildSystemPrompt(tenantId, contact.id);
 
   // 3. Carrega histórico de mensagens (contexto)
   const histResult = await query(
