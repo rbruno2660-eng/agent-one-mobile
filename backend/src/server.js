@@ -95,5 +95,18 @@ runMigrations().then(() => {
     } catch (err) {
       console.warn('⚠️  Cron de follow-up não iniciado:', err.message);
     }
+
+    // Cron: lembretes de agendamento (a cada 1 hora — envia 24h antes)
+    try {
+      const cron = require('node-cron');
+      const { runReminderCycle } = require('./services/appointment-reminder.service');
+      cron.schedule('0 * * * *', async () => {
+        try { await runReminderCycle(); }
+        catch (err) { console.error('[AppointmentReminder] Erro no cron:', err.message); }
+      });
+      console.log('✅ Cron de lembretes de agendamento ativo (a cada hora)');
+    } catch (err) {
+      console.warn('⚠️  Cron de lembretes não iniciado:', err.message);
+    }
   });
 });

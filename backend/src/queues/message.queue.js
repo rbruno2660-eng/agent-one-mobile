@@ -60,8 +60,9 @@ async function processInbound({ tenantId, phoneId, from, name, message }) {
   // 2. Busca/cria conversa
   const conversation = await conversationService.findOrCreateConversation(tenantId, contact.id);
 
-  // 3. Resolve conteúdo da mensagem — transcreve áudio se disponível
+  // 3. Resolve conteúdo da mensagem — transcreve áudio / analisa foto se disponível
   let content = message.text?.body || message.caption || '[mídia]';
+
   if (message.type === 'audio' && message.audio?.id) {
     try {
       const transcript = await transcribeAudio(message.audio.id);
@@ -71,7 +72,31 @@ async function processInbound({ tenantId, phoneId, from, name, message }) {
       }
     } catch (err) {
       console.warn('[Transcription] Falha ao transcrever áudio:', err.message);
-      // Fallback: conteúdo como '[mídia]' — IA informará ao cliente que não entendeu o áudio
+      // Fallback: conteúdo como '[mídia]' — IA informará ao cliente
+    }
+  }
+
+  // 3b. Agent One Vision — analisa foto de aparelho para avaliação de troca
+  if (message.type === 'image' && message.image?.id) {
+    try {
+      const { query: dbQuery } = require('../db/pool');
+      const channelRow = await dbQuery(
+        `SELECT settings FROM channels WHERE tenant_id = $1 AND status = 'active' LIMIT 1`,
+        [tenantId]
+      );
+      const channelToken = channelRow.rows[0]?.settings?.access_token || null;
+
+      if (channelToken) {
+        const { analyzeTradePhoto, formatAnalysisForAgent } = require('../services/vision.service');
+        const analysis = await analyzeTradePhoto(message.image.id, channelToken);
+        content = formatAnalysisForAgent(analysis);
+        console.log(`[Vision] Análise concluída: modelo=${analysis.model_detected}, confiança=${analysis.confidence}`);
+      } else {
+        content = '[Cliente enviou uma foto do aparelho. Canal sem token — peça ao cliente para descrever o estado do aparelho.]';
+      }
+    } catch (err) {
+      console.warn('[Vision] Erro ao analisar foto:', err.message);
+      content = '[Cliente enviou uma foto do aparelho para avaliação. Análise automática indisponível — peça detalhes ao cliente: estado da tela, traseira e carcaça, e saúde da bateria.]';
     }
   }
 
