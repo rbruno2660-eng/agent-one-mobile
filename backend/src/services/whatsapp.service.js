@@ -126,6 +126,59 @@ async function markAsRead(phoneId, messageId, token) {
 }
 
 /**
+ * Envia mensagem de áudio/voz via WhatsApp.
+ * Faz upload do buffer OGG/OPUS para a Media API e envia como mensagem de voz.
+ * @param {string} phoneId - ID do número WABA
+ * @param {string} to - número do destinatário
+ * @param {Buffer} audioBuffer - Buffer OGG/OPUS gerado pelo TTS
+ * @param {string} [token] - access token do tenant
+ */
+async function sendAudio(phoneId, to, audioBuffer, token) {
+  const accessToken = token || process.env.WHATSAPP_TOKEN;
+  const baseUrl = `${BASE_URL}/${phoneId}`;
+
+  // Passo 1: Upload do áudio para a WhatsApp Media API
+  const formData = new FormData();
+  const blob = new Blob([audioBuffer], { type: 'audio/ogg; codecs=opus' });
+  formData.append('file', blob, 'voice.ogg');
+  formData.append('type', 'audio/ogg; codecs=opus');
+  formData.append('messaging_product', 'whatsapp');
+
+  const uploadRes = await fetch(`${baseUrl}/media`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
+  });
+
+  const uploadData = await uploadRes.json();
+  if (!uploadRes.ok) {
+    throw new Error(`WhatsApp media upload error: ${uploadData?.error?.message || uploadRes.statusText}`);
+  }
+
+  const mediaId = uploadData.id;
+
+  // Passo 2: Envia mensagem de áudio com o media_id
+  const sendRes = await fetch(`${baseUrl}/messages`, {
+    method: 'POST',
+    headers: getHeaders(accessToken),
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to,
+      type: 'audio',
+      audio: { id: mediaId },
+    }),
+  });
+
+  const sendData = await sendRes.json();
+  if (!sendRes.ok) {
+    throw new Error(`WhatsApp sendAudio error: ${sendData?.error?.message || sendRes.statusText}`);
+  }
+
+  return sendData;
+}
+
+/**
  * Verifica assinatura HMAC-SHA256 do webhook Meta.
  * timingSafeEqual exige buffers de mesmo tamanho —
  * divergência de comprimento já indica assinatura inválida.
@@ -154,4 +207,4 @@ function verifySignature(rawBody, signature) {
   return crypto.timingSafeEqual(sigBuf, expBuf);
 }
 
-module.exports = { sendText, sendImage, sendTemplate, markAsRead, verifySignature };
+module.exports = { sendText, sendImage, sendAudio, sendTemplate, markAsRead, verifySignature };

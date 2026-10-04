@@ -257,7 +257,7 @@ async function executeTool(toolName, input, context) {
 
         // Busca image_url do produto
         const mediaResult = await query(
-          `SELECT p.name, p.storage, p.image_url,
+          `SELECT p.brand || ' ' || p.model AS name, p.storage, p.image_url,
                   ch.phone_id, ch.settings
            FROM products p
            CROSS JOIN channels ch

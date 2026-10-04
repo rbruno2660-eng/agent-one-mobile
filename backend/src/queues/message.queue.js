@@ -53,6 +53,7 @@ async function processInbound({ tenantId, phoneId, from, name, message }) {
   const whatsappService = require('../services/whatsapp.service');
   const agentRuntime = require('../agents/runtime');
   const { transcribeAudio } = require('../services/transcription.service');
+  const { textToSpeech, isTTSEnabled } = require('../services/tts.service');
 
   // 1. Busca/cria contato
   const contact = await conversationService.findOrCreateContact(tenantId, from, name);
@@ -61,6 +62,7 @@ async function processInbound({ tenantId, phoneId, from, name, message }) {
   const conversation = await conversationService.findOrCreateConversation(tenantId, contact.id);
 
   // 3. Resolve conteúdo da mensagem — transcreve áudio / analisa foto se disponível
+  const clientSentAudio = message.type === 'audio'; // ← usado no passo 7 para espelhar áudio
   let content = message.text?.body || message.caption || '[mídia]';
 
   if (message.type === 'audio' && message.audio?.id) {
@@ -132,22 +134,42 @@ async function processInbound({ tenantId, phoneId, from, name, message }) {
     return { skipped: true, reason: 'handoff_or_closed' };
   }
 
-  // Busca token do tenant (channels.settings.access_token), fallback para env var
+  // 7. Busca configurações do canal (token + voz ElevenLabs por tenant)
   const { query: dbQuery } = require('../db/pool');
   const channelRow = await dbQuery(
     `SELECT settings FROM channels WHERE tenant_id = $1 AND status = 'active' LIMIT 1`,
     [tenantId]
   );
-  const channelToken = channelRow.rows[0]?.settings?.access_token || null;
+  const channelSettings = channelRow.rows[0]?.settings || {};
+  const channelToken = channelSettings.access_token || null;
+  const tenantVoiceId = channelSettings.elevenlabs_voice_id || null; // voz clonada por tenant
 
-  const sent = await whatsappService.sendText(phoneId, from, reply, channelToken);
+  // 8. Envia resposta — espelha o formato: áudio → áudio (com voz clonada), texto → texto
+  let sent;
+  let outboundType = 'text';
 
-  // Persiste resposta enviada
+  if (clientSentAudio && isTTSEnabled(tenantVoiceId)) {
+    try {
+      console.log(`[TTS] Cliente enviou áudio — gerando resposta em voz para ${from}`);
+      const oggBuffer = await textToSpeech(reply, tenantVoiceId);
+      sent = await whatsappService.sendAudio(phoneId, from, oggBuffer, channelToken);
+      outboundType = 'audio';
+      console.log(`[TTS] Resposta de voz enviada com sucesso para ${from}`);
+    } catch (ttsErr) {
+      // Fallback para texto se TTS falhar (não quebra o atendimento)
+      console.warn(`[TTS] Falha ao gerar áudio — enviando como texto. Erro: ${ttsErr.message}`);
+      sent = await whatsappService.sendText(phoneId, from, reply, channelToken);
+    }
+  } else {
+    sent = await whatsappService.sendText(phoneId, from, reply, channelToken);
+  }
+
+  // 9. Persiste resposta enviada
   await conversationService.saveMessage({
     conversationId: conversation.id,
     tenantId,
     direction: 'outbound',
-    type: 'text',
+    type: outboundType,
     content: reply,
     providerId: sent?.messages?.[0]?.id || null,
   });
