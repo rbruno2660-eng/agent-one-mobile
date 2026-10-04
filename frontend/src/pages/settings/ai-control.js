@@ -166,7 +166,7 @@ export default function AIControlPage() {
       <div>
         <h1 className="text-xl font-bold text-white">Controle de Operação da IA</h1>
         <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
-          Gerencie quando a Sofia responde automaticamente
+          Gerencie quando o Agent One responde automaticamente
         </p>
       </div>
 

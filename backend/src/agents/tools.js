@@ -120,6 +120,76 @@ const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: 'send_product_media',
+    description: 'Envia a foto de um produto diretamente no WhatsApp do cliente. Use após search_products quando quiser mostrar o aparelho visualmente. Envie no máximo 3 fotos por interação.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        product_id: { type: 'string', description: 'UUID do produto' },
+        caption: { type: 'string', description: 'Legenda curta para a foto (ex: iPhone 14 Pro 128GB - Space Black)' },
+      },
+      required: ['product_id'],
+    },
+  },
+  {
+    name: 'compare_products',
+    description: 'Compara dois modelos de iPhone lado a lado: specs técnicos e preços reais da loja. Use quando o cliente perguntar a diferença entre modelos.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        model_a: { type: 'string', description: 'Primeiro modelo (ex: iPhone 13)' },
+        model_b: { type: 'string', description: 'Segundo modelo (ex: iPhone 14)' },
+        storage: { type: 'string', description: 'Armazenamento para comparar preços (ex: 128GB). Se omitido, usa o mais barato disponível.' },
+      },
+      required: ['model_a', 'model_b'],
+    },
+  },
+  {
+    name: 'get_available_slots',
+    description: 'Retorna os horários disponíveis para agendamento de visita nos próximos dias. Use quando o cliente quiser agendar uma visita à loja, reparo ou avaliação de troca presencial.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        days_ahead: {
+          type: 'number',
+          description: 'Quantos dias à frente verificar (padrão: 3, máximo: 7)',
+        },
+        service_type: {
+          type: 'string',
+          enum: ['store_visit', 'repair', 'trade_in'],
+          description: 'Tipo de atendimento desejado',
+        },
+      },
+    },
+  },
+  {
+    name: 'book_appointment',
+    description: 'Agenda uma visita presencial do cliente à loja. Use apenas após o cliente confirmar o horário retornado por get_available_slots.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        date: {
+          type: 'string',
+          description: 'Data do agendamento no formato YYYY-MM-DD (ex: 2026-10-15)',
+        },
+        time: {
+          type: 'string',
+          description: 'Horário no formato HH:MM (ex: 14:30)',
+        },
+        service_type: {
+          type: 'string',
+          enum: ['store_visit', 'repair', 'trade_in', 'other'],
+          description: 'Tipo de atendimento',
+        },
+        notes: {
+          type: 'string',
+          description: 'Observações adicionais (ex: trazer nota fiscal, iPhone 13 para reparo)',
+        },
+      },
+      required: ['date', 'time', 'service_type'],
+    },
+  },
+  {
     name: 'request_handoff',
     description: 'Transfere a conversa para um atendente humano. Use quando o cliente pede uma pessoa, há conflito, desconto além do limite ou fechamento de venda.',
     input_schema: {

@@ -103,4 +103,153 @@ router.get('/overview', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────
+// GET /analytics/intelligence — painel de inteligência comercial
+// ─────────────────────────────────────────────────────────────────
+router.get('/intelligence', async (req, res) => {
+  try {
+    const tid = req.tenantId;
+
+    const [
+      highConversionGap,
+      topTradeIns,
+      peakHours,
+      hotLeads,
+    ] = await Promise.all([
+
+      // 1. Produtos mais consultados que não converteram (leads sem stage 'won')
+      //    Alta consulta + baixa conversão = pode precisar revisar preço ou estoque
+      query(`
+        SELECT
+          p.id,
+          p.model,
+          p.storage,
+          p.current_price,
+          COUNT(DISTINCT l.id) AS total_leads,
+          COUNT(DISTINCT l.id) FILTER (WHERE l.stage = 'won') AS converted,
+          COUNT(DISTINCT l.id) FILTER (WHERE l.stage NOT IN ('won','lost')) AS active_leads,
+          ROUND(
+            100.0 * COUNT(DISTINCT l.id) FILTER (WHERE l.stage = 'won')
+            / NULLIF(COUNT(DISTINCT l.id), 0), 1
+          ) AS conversion_rate
+        FROM products p
+        LEFT JOIN leads l ON l.product_id = p.id AND l.tenant_id = $1
+        WHERE p.tenant_id = $1 AND p.active = true
+        GROUP BY p.id, p.model, p.storage, p.current_price
+        HAVING COUNT(DISTINCT l.id) >= 2
+        ORDER BY total_leads DESC, conversion_rate ASC NULLS LAST
+        LIMIT 10
+      `, [tid]),
+
+      // 2. Modelos de trade-in mais recebidos nos últimos 30 dias
+      //    Indica quais modelos estão entrando — sugere estoque para revenda
+      query(`
+        SELECT
+          te.device_model AS model,
+          te.device_storage AS storage,
+          COUNT(*) AS total_evaluations,
+          COUNT(*) FILTER (WHERE te.status = 'approved') AS approved,
+          AVG(te.estimate) AS avg_value
+        FROM trade_evaluations te
+        WHERE te.tenant_id = $1
+          AND te.created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY te.device_model, te.device_storage
+        ORDER BY total_evaluations DESC
+        LIMIT 10
+      `, [tid]),
+
+      // 3. Horários de pico de atendimento (hora UTC-3, últimos 30 dias)
+      query(`
+        SELECT
+          EXTRACT(HOUR FROM m.created_at AT TIME ZONE 'America/Sao_Paulo')::int AS hour,
+          COUNT(*) AS message_count
+        FROM messages m
+        WHERE m.tenant_id = $1
+          AND m.direction = 'inbound'
+          AND m.created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY 1
+        ORDER BY 1
+      `, [tid]),
+
+      // 4. Leads quentes do dia — alta intenção, sem contato recente
+      query(`
+        SELECT
+          l.id,
+          l.score,
+          l.stage,
+          l.follow_up_count,
+          l.last_follow_up_at,
+          ct.name AS contact_name,
+          ct.phone AS contact_phone,
+          p.model AS product_model,
+          p.storage AS product_storage,
+          p.current_price,
+          COALESCE(
+            (SELECT MAX(m.created_at) FROM messages m
+             JOIN conversations c2 ON c2.id = m.conversation_id
+             WHERE c2.contact_id = ct.id AND c2.tenant_id = $1),
+            l.created_at
+          ) AS last_activity
+        FROM leads l
+        JOIN contacts ct ON ct.id = l.contact_id
+        LEFT JOIN products p ON p.id = l.product_id
+        WHERE l.tenant_id = $1
+          AND l.stage NOT IN ('won', 'lost')
+          AND l.score >= 50
+        ORDER BY l.score DESC, last_activity ASC
+        LIMIT 10
+      `, [tid]),
+    ]);
+
+    // Processa horários de pico — retorna array de 24 posições
+    const peakHoursArr = Array.from({ length: 24 }, (_, h) => {
+      const row = peakHours.rows.find(r => parseInt(r.hour) === h);
+      return { hour: h, count: row ? parseInt(row.message_count) : 0 };
+    });
+    const maxMessages = Math.max(...peakHoursArr.map(h => h.count), 1);
+    const peakHoursNormalized = peakHoursArr.map(h => ({
+      ...h,
+      peak: h.count === maxMessages,
+    }));
+
+    res.json({
+      high_conversion_gap: highConversionGap.rows.map(r => ({
+        id: r.id,
+        model: r.model,
+        storage: r.storage,
+        price: parseFloat(r.current_price) || null,
+        total_leads: parseInt(r.total_leads),
+        converted: parseInt(r.converted),
+        active_leads: parseInt(r.active_leads),
+        conversion_rate: parseFloat(r.conversion_rate) || 0,
+        alert: parseInt(r.total_leads) >= 5 && parseFloat(r.conversion_rate) < 20
+          ? 'Muitas consultas, poucos fechamentos. Revise o preço ou estoque.'
+          : null,
+      })),
+      top_trade_ins: topTradeIns.rows.map(r => ({
+        model: r.model,
+        storage: r.storage,
+        total: parseInt(r.total_evaluations),
+        approved: parseInt(r.approved),
+        avg_value: r.avg_value ? parseFloat(r.avg_value).toFixed(0) : null,
+      })),
+      peak_hours: peakHoursNormalized,
+      hot_leads: hotLeads.rows.map(r => ({
+        id: r.id,
+        score: r.score,
+        stage: r.stage,
+        contact: { name: r.contact_name, phone: r.contact_phone },
+        product: r.product_model ? `${r.product_model}${r.product_storage ? ' ' + r.product_storage : ''}` : null,
+        price: r.current_price ? parseFloat(r.current_price) : null,
+        last_activity: r.last_activity,
+        follow_up_count: r.follow_up_count,
+        days_inactive: Math.floor((Date.now() - new Date(r.last_activity).getTime()) / 86400000),
+      })),
+    });
+  } catch (err) {
+    console.error('[Intelligence]', err);
+    res.status(500).json({ error: 'Erro ao gerar inteligência comercial' });
+  }
+});
+
 module.exports = router;

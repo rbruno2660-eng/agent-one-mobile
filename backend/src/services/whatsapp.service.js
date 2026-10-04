@@ -46,6 +46,38 @@ async function sendText(phoneId, to, text, token) {
 }
 
 /**
+ * Envia imagem via URL pública.
+ * @param {string} phoneId - ID do número WABA
+ * @param {string} to - número do destinatário
+ * @param {string} imageUrl - URL pública da imagem (jpg/png/webp)
+ * @param {string} [caption] - legenda opcional
+ * @param {string} [token] - access token do tenant
+ */
+async function sendImage(phoneId, to, imageUrl, caption = '', token) {
+  const url = `${BASE_URL}/${phoneId}/messages`;
+  const payload = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'image',
+    image: { link: imageUrl, ...(caption ? { caption } : {}) },
+  };
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: getHeaders(token),
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error?.message || res.statusText);
+    return data;
+  } catch (err) {
+    throw new Error(`WhatsApp sendImage error: ${err.message}`);
+  }
+}
+
+/**
  * Envia template aprovado pelo Meta.
  * @param {string} [token] - access token do tenant
  */
@@ -122,4 +154,4 @@ function verifySignature(rawBody, signature) {
   return crypto.timingSafeEqual(sigBuf, expBuf);
 }
 
-module.exports = { sendText, sendTemplate, markAsRead, verifySignature };
+module.exports = { sendText, sendImage, sendTemplate, markAsRead, verifySignature };

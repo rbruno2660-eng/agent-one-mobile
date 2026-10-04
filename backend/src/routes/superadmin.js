@@ -245,7 +245,7 @@ router.post('/tenants/:id/activate', async (req, res) => {
     if (!agentExists.rows.length) {
       await query(
         `INSERT INTO agents (tenant_id, name, persona, tone, status)
-         VALUES ($1, 'Sofia', 'Atendente virtual especialista em celulares e acessórios', 'professional', 'active')`,
+         VALUES ($1, 'Agent One', 'Atendente virtual especialista em celulares e acessórios', 'professional', 'active')`,
         [id]
       );
     }

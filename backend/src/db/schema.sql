@@ -144,6 +144,7 @@ CREATE TABLE products (
   battery_health INTEGER,                       -- % para seminovos
   warranty    TEXT,
   description TEXT,
+  image_url   TEXT,                             -- URL pública da foto do produto (para envio via WhatsApp)
   active      BOOLEAN NOT NULL DEFAULT true,
   metadata    JSONB NOT NULL DEFAULT '{}',
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),

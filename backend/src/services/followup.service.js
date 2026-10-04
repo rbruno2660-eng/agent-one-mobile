@@ -102,7 +102,7 @@ async function sendFollowUp(phoneId, lead) {
     if (msgs.rows.length) {
       context = msgs.rows
         .reverse()
-        .map(m => `${m.direction === 'inbound' ? 'Cliente' : 'Sofia'}: ${m.content}`)
+        .map(m => `${m.direction === 'inbound' ? 'Cliente' : 'Agent One'}: ${m.content}`)
         .join('\n');
     }
   }
@@ -119,7 +119,7 @@ async function sendFollowUp(phoneId, lead) {
     messages: [{
       role: 'user',
       content:
-        `Você é Sofia, atendente simpática de uma loja de celulares. ` +
+        `Você é o Agent One, atendente virtual simpático de uma loja de celulares. ` +
         `Escreva uma mensagem de follow-up curta (1-2 frases) para ${lead.contact_name || 'o cliente'} ` +
         `que se interessou por "${productInfo}" mas não respondeu há mais de 48 horas. ` +
         `Estágio atual: ${lead.stage}. Este é o follow-up ${followUpNumber} de ${MAX_FOLLOW_UPS}. ` +

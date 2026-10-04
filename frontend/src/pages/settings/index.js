@@ -85,7 +85,7 @@ export default function SettingsPage() {
             Todas as alterações aqui entram em vigor imediatamente — o prompt é reconstruído a cada mensagem nova.
           </p>
 
-          <Field label="Nome do agente" placeholder="Ex: Sofia, Max, Ana"
+          <Field label="Nome do agente" placeholder="Ex: Agent One, Max, Ana"
             value={agentForm.name || ''} onChange={e => setAgentForm(p => ({ ...p, name: e.target.value }))} />
 
           <Field label="Persona / estilo de atendimento"
