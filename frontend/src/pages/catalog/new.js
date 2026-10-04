@@ -61,6 +61,7 @@ export default function NewProductPage() {
     condition: 'new',
     battery_health: '',
     warranty: '',
+    image_url: '',
     quantity: 0,
     table_price: '',
     current_price: '',
@@ -96,6 +97,7 @@ export default function NewProductPage() {
     try {
       const payload = {
         ...form,
+        image_url: form.image_url || undefined,
         quantity: parseInt(form.quantity) || 0,
         table_price: parseFloat(form.table_price) || parseFloat(form.current_price),
         current_price: parseFloat(form.current_price),
@@ -174,6 +176,28 @@ export default function NewProductPage() {
             <Field label="Garantia">
               <Input value={form.warranty} onChange={e => set('warranty', e.target.value)} placeholder="Ex: 12 meses Apple" />
             </Field>
+          </div>
+          <div className="mt-4">
+            <Field label="URL da foto do produto">
+              <Input
+                type="url"
+                value={form.image_url}
+                onChange={e => set('image_url', e.target.value)}
+                placeholder="https://... (link da imagem do aparelho)"
+              />
+            </Field>
+            {form.image_url && (
+              <div className="mt-3 flex items-center gap-3">
+                <img
+                  src={form.image_url}
+                  alt="Preview"
+                  className="w-16 h-16 object-contain rounded-xl border"
+                  style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}
+                  onError={e => { e.target.style.display = 'none'; }}
+                />
+                <span className="text-xs" style={{ color: 'var(--muted)' }}>Preview da imagem</span>
+              </div>
+            )}
           </div>
         </Section>
 
