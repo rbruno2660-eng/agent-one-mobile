@@ -3,10 +3,12 @@ import { useRouter } from 'next/router';
 import { login } from '../lib/auth';
 import { useAuth } from '../hooks/useAuth';
 import toast from 'react-hot-toast';
+import { Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { setUser } = useAuth();
   const router = useRouter();
@@ -53,15 +55,27 @@ export default function LoginPage() {
             </div>
             <div>
               <label className="block text-sm mb-1" style={{ color: 'var(--muted)' }}>Senha</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full px-4 py-3 rounded-xl text-sm text-white border outline-none focus:border-blue-500 transition"
-                style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="w-full px-4 py-3 pr-12 rounded-xl text-sm text-white border outline-none focus:border-blue-500 transition"
+                  style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded transition hover:opacity-100 opacity-50"
+                  tabIndex={-1}
+                >
+                  {showPassword
+                    ? <EyeOff size={16} className="text-gray-400" />
+                    : <Eye size={16} className="text-gray-400" />}
+                </button>
+              </div>
             </div>
             <button
               type="submit"

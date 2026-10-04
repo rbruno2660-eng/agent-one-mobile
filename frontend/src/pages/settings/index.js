@@ -6,7 +6,6 @@ import { Save } from 'lucide-react';
 
 const TABS = [
   { key: 'agent', label: 'Agente' },
-  { key: 'team', label: 'Equipe' },
   { key: 'app', label: 'App iPhone' },
 ];
 
@@ -27,8 +26,6 @@ export default function SettingsPage() {
   const [tab, setTab] = useState('agent');
   const [agent, setAgent] = useState(null);
   const [agentForm, setAgentForm] = useState({});
-  const [users, setUsers] = useState([]);
-  const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'seller' });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -48,12 +45,6 @@ export default function SettingsPage() {
     }).catch(() => null);
   }, []);
 
-  useEffect(() => {
-    if (tab === 'team') {
-      api.get('/users').then(r => setUsers(r.data)).catch(() => {});
-    }
-  }, [tab]);
-
   async function saveAgent(e) {
     e.preventDefault();
     setSaving(true);
@@ -71,19 +62,6 @@ export default function SettingsPage() {
       toast.error(err.response?.data?.error || 'Erro ao salvar configurações');
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function createUser(e) {
-    e.preventDefault();
-    if (!newUser.name || !newUser.email || !newUser.password) return toast.error('Preencha todos os campos');
-    try {
-      await api.post('/users', newUser);
-      toast.success('Usuário criado');
-      setNewUser({ name: '', email: '', password: '', role: 'seller' });
-      api.get('/users').then(r => setUsers(r.data)).catch(() => {});
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Erro ao criar usuário');
     }
   }
 
@@ -129,53 +107,6 @@ export default function SettingsPage() {
             <Save size={14} /> Salvar configurações
           </button>
         </form>
-      )}
-
-      {/* ── EQUIPE ── */}
-      {tab === 'team' && (
-        <div className="space-y-6">
-          {/* Create user */}
-          <div className="rounded-2xl border p-5" style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
-            <h3 className="text-sm font-semibold text-white mb-4">Adicionar membro</h3>
-            <form onSubmit={createUser} className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Nome" placeholder="Nome completo" value={newUser.name} onChange={e => setNewUser(p => ({ ...p, name: e.target.value }))} />
-                <Field label="E-mail" type="email" placeholder="email@loja.com" value={newUser.email} onChange={e => setNewUser(p => ({ ...p, email: e.target.value }))} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Senha temporária" type="password" placeholder="Mín. 8 caracteres" value={newUser.password} onChange={e => setNewUser(p => ({ ...p, password: e.target.value }))} />
-                <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--muted)' }}>Função</label>
-                  <select value={newUser.role} onChange={e => setNewUser(p => ({ ...p, role: e.target.value }))}
-                    className="w-full px-3 py-2.5 rounded-xl text-sm text-white border outline-none" style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
-                    {['manager','seller','service','viewer'].map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                </div>
-              </div>
-              <button type="submit" className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: 'var(--primary)' }}>Criar usuário</button>
-            </form>
-          </div>
-
-          {/* User list */}
-          <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)' }}>
-            <table className="w-full text-sm">
-              <thead><tr className="border-b" style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
-                {['Nome','E-mail','Função','Status'].map(h => <th key={h} className="text-left px-4 py-3 text-xs font-medium" style={{ color: 'var(--muted)' }}>{h}</th>)}
-              </tr></thead>
-              <tbody>
-                {users.map(u => (
-                  <tr key={u.id} className="border-b hover:bg-white/[0.02]" style={{ borderColor: 'var(--border)' }}>
-                    <td className="px-4 py-3 text-white font-medium">{u.name}</td>
-                    <td className="px-4 py-3 text-xs" style={{ color: 'var(--muted)' }}>{u.email}</td>
-                    <td className="px-4 py-3"><span className="text-xs px-2 py-0.5 rounded-md" style={{ background: 'var(--bg)', color: 'var(--muted)', border: '1px solid var(--border)' }}>{u.role}</span></td>
-                    <td className="px-4 py-3"><span className="text-xs" style={{ color: u.active ? '#22c55e' : '#f87171' }}>{u.active ? 'Ativo' : 'Inativo'}</span></td>
-                  </tr>
-                ))}
-                {users.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-xs" style={{ color: 'var(--muted)' }}>Nenhum membro</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </div>
       )}
 
       {/* ── APP IPHONE ── */}
@@ -224,7 +155,7 @@ export default function SettingsPage() {
           <div className="rounded-2xl border p-5" style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
             <h3 className="text-sm font-semibold text-white mb-2">Login padrão para a equipe</h3>
             <p className="text-xs" style={{ color: 'var(--muted)' }}>
-              Cada membro usa o próprio e-mail e senha criados na aba <strong className="text-white">Equipe</strong>. Crie os usuários antes de enviar o link.
+              Cada membro usa o próprio e-mail e senha criados na aba <strong className="text-white">Atendentes</strong>. Crie os usuários antes de enviar o link.
             </p>
           </div>
         </div>
