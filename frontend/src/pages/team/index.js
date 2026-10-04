@@ -5,6 +5,13 @@ import toast from 'react-hot-toast';
 import { UserPlus, Users, Phone } from 'lucide-react';
 
 const ROLES = ['manager', 'seller', 'service', 'viewer'];
+const ROLE_LABELS = {
+  manager: 'Gerente',
+  seller:  'Vendedor',
+  service: 'Atendimento',
+  viewer:  'Visualizador',
+  owner:   'Proprietário',
+};
 
 function Field({ label, ...props }) {
   return (
@@ -86,7 +93,7 @@ export default function TeamPage() {
               <select value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))}
                 className="w-full px-3 py-2.5 rounded-xl text-sm text-white border outline-none"
                 style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
-                {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>)}
               </select>
             </div>
             <button type="submit" disabled={saving}
@@ -127,7 +134,7 @@ export default function TeamPage() {
                 <td className="px-4 py-3">
                   <span className="text-xs px-2 py-0.5 rounded-full font-medium"
                     style={roleColor[u.role] || roleColor.viewer}>
-                    {u.role}
+                    {ROLE_LABELS[u.role] || u.role}
                   </span>
                 </td>
                 <td className="px-4 py-3">
