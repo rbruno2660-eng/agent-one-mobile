@@ -26,7 +26,7 @@ async function loadClientHistory(tenantId, contactId) {
   // Lead ativo do contato
   const leadResult = await query(
     `SELECT l.stage, l.score, l.notes, l.created_at,
-            p.name AS product_name, p.brand, p.storage
+            (p.brand || ' ' || p.model) AS product_name, p.brand, p.storage
      FROM leads l
      LEFT JOIN products p ON p.id = l.product_id
      WHERE l.tenant_id = $1 AND l.contact_id = $2
@@ -36,7 +36,7 @@ async function loadClientHistory(tenantId, contactId) {
 
   // Troca pré-avaliada pendente
   const tradeResult = await query(
-    `SELECT te.status, te.estimated_value, te.device_model, te.device_storage,
+    `SELECT te.status, te.estimate AS estimated_value, te.device_model, te.device_storage,
             te.created_at
      FROM trade_evaluations te
      WHERE te.tenant_id = $1 AND te.contact_id = $2

@@ -90,6 +90,8 @@ app.use('/analytics', require('./routes/analytics'));
 app.use('/handoff-agents', require('./routes/handoff-agents'));
 app.use('/ai-config', require('./routes/ai-config'));
 app.use('/appointments', require('./routes/appointments'));
+app.use('/pipeline', require('./routes/pipeline'));     // Feature 3 — funil de conversas
+app.use('/campaigns', require('./routes/campaigns'));   // Feature 4 — campanhas ativas
 
 // ─── 404 ───────────────────────────────────────
 app.use((req, res) => {

@@ -50,6 +50,7 @@ const IPHONE_MODELS = [
 
 const STORAGES = ['64GB','128GB','256GB','512GB','1TB'];
 
+
 function resizeImage(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -223,6 +224,7 @@ export default function NewProductPage() {
               <Input value={form.warranty} onChange={e => set('warranty', e.target.value)} placeholder="Ex: 12 meses Apple" />
             </Field>
           </div>
+
 
           <div className="mt-4">
             <label className="block text-sm mb-2 font-medium" style={{ color: 'var(--muted)' }}>Foto do produto</label>

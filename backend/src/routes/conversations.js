@@ -127,10 +127,32 @@ router.patch('/:id/assign', async (req, res) => {
 // PATCH /conversations/:id/close — encerra conversa
 router.patch('/:id/close', async (req, res) => {
   try {
+    const conversation = await conversationService.getConversation(req.tenantId, req.params.id);
+    if (!conversation) return res.status(404).json({ error: 'Conversa não encontrada' });
+
     const updated = await conversationService.updateConversationStatus(
       req.params.id, req.tenantId, 'closed'
     );
     if (!updated) return res.status(404).json({ error: 'Conversa não encontrada' });
+
+    // Feature 5 — Recompra: se lead atingiu 'won', agenda reativação em 30 dias
+    setImmediate(async () => {
+      try {
+        const { scheduleReactivation } = require('../services/reactivation.service');
+        const wonLead = await query(
+          `SELECT id, contact_id FROM leads
+           WHERE conversation_id = $1 AND tenant_id = $2 AND stage = 'won'
+           LIMIT 1`,
+          [req.params.id, req.tenantId]
+        );
+        if (wonLead.rows.length) {
+          await scheduleReactivation(req.tenantId, wonLead.rows[0].contact_id, req.params.id);
+        }
+      } catch (err) {
+        console.error('[Close/Reactivation] Erro ao agendar reativação:', err.message);
+      }
+    });
+
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Erro ao encerrar conversa' });

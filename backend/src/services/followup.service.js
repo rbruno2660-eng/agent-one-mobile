@@ -151,3 +151,89 @@ async function sendFollowUp(phoneId, lead) {
 }
 
 module.exports = { runFollowUpCycle };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Feature 1 — Follow-up automático de conversas inativas (ai_active > 3h)
+// Cron: a cada 30 minutos
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Ponto de entrada do cron de conversas inativas.
+ * Busca conversas com status ai_active onde:
+ *   - A última mensagem inbound foi há mais de 3 horas
+ *   - Não houve nenhuma mensagem outbound depois dela
+ *   - followup_sent_at é NULL (só 1 follow-up por conversa)
+ */
+async function runConversationFollowUpCycle() {
+  console.log('[ConvFollowUp] Iniciando ciclo de follow-up de conversas...');
+
+  // Conversas elegíveis de todos os tenants
+  const result = await query(`
+    SELECT
+      c.id            AS conversation_id,
+      c.tenant_id,
+      c.contact_id,
+      ct.name         AS contact_name,
+      ct.phone        AS contact_phone,
+      ch.phone_id,
+      ch.settings     AS channel_settings,
+      last_in.created_at AS last_inbound_at
+    FROM conversations c
+    JOIN contacts ct ON ct.id = c.contact_id
+    JOIN channels ch ON ch.tenant_id = c.tenant_id AND ch.status = 'active'
+    JOIN LATERAL (
+      SELECT created_at FROM messages
+      WHERE conversation_id = c.id AND direction = 'inbound'
+      ORDER BY created_at DESC LIMIT 1
+    ) last_in ON true
+    WHERE c.status = 'ai_active'
+      AND c.followup_sent_at IS NULL
+      AND last_in.created_at < NOW() - INTERVAL '3 hours'
+      AND NOT EXISTS (
+        SELECT 1 FROM messages
+        WHERE conversation_id = c.id
+          AND direction = 'outbound'
+          AND created_at > last_in.created_at
+      )
+    LIMIT 50
+  `);
+
+  console.log(`[ConvFollowUp] ${result.rows.length} conversa(s) elegíveis.`);
+
+  for (const row of result.rows) {
+    try {
+      await sendConversationFollowUp(row);
+    } catch (err) {
+      console.error(`[ConvFollowUp] Erro na conversa ${row.conversation_id}:`, err.message);
+    }
+  }
+
+  console.log('[ConvFollowUp] Ciclo concluído.');
+}
+
+async function sendConversationFollowUp(row) {
+  const { conversation_id, tenant_id, contact_name, contact_phone, phone_id, channel_settings } = row;
+  const token = channel_settings?.access_token || null;
+
+  const message = `Oi${contact_name ? `, ${contact_name.split(' ')[0]}` : ''}! 😊 Ficou com alguma dúvida? Estou aqui pra ajudar!`;
+
+  // Envia via WhatsApp
+  await whatsappService.sendText(phone_id, contact_phone, message, token);
+
+  // Persiste a mensagem outbound
+  await query(
+    `INSERT INTO messages (conversation_id, tenant_id, direction, type, content)
+     VALUES ($1, $2, 'outbound', 'text', $3)`,
+    [conversation_id, tenant_id, message]
+  );
+
+  // Marca followup_sent_at na conversa
+  await query(
+    `UPDATE conversations SET followup_sent_at = NOW(), updated_at = NOW() WHERE id = $1`,
+    [conversation_id]
+  );
+
+  console.log(`[ConvFollowUp] ✓ Follow-up enviado para ${contact_name || contact_phone} (conv ${conversation_id})`);
+}
+
+module.exports = { runFollowUpCycle, runConversationFollowUpCycle };

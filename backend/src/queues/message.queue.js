@@ -127,6 +127,60 @@ async function processInbound({ tenantId, phoneId, from, name, message }) {
     return { skipped: true, reason: 'human_active' };
   }
 
+  // 5b. Roteamento por palavra-chave — Feature 2
+  // Detecta intenções antes de chamar a IA (economiza tokens e redireciona instantaneamente)
+  const rawText = message.text?.body || message.caption || '';
+  if (rawText) {
+    const { detectIntent } = require('../agents/keyword.router');
+    const kwIntent = detectIntent(rawText);
+
+    if (kwIntent && kwIntent.handoffReason) {
+      // Intenções que exigem transferência para humano (cancel, payment, human_request)
+      console.log(`[KeywordRouter] Intent "${kwIntent.intent}" detectado — transferindo para humano (${kwIntent.handoffReason})`);
+      const { query: dbQuery } = require('../db/pool');
+
+      // Cria handoff
+      await dbQuery(
+        `INSERT INTO handoffs (conversation_id, tenant_id, reason, summary, status)
+         VALUES ($1, $2, $3, $4, 'pending')
+         ON CONFLICT DO NOTHING`,
+        [conversation.id, tenantId, kwIntent.handoffReason,
+          `Transferência automática por palavra-chave (intent: ${kwIntent.intent})`]
+      );
+
+      // Atualiza status
+      await conversationService.updateConversationStatus(conversation.id, tenantId, 'human_requested');
+
+      // Mensagem de confirmação ao cliente
+      const channelRow = await dbQuery(
+        `SELECT phone_id, settings FROM channels WHERE tenant_id = $1 AND status = 'active' LIMIT 1`,
+        [tenantId]
+      );
+      if (channelRow.rows.length) {
+        const ph = channelRow.rows[0].phone_id;
+        const tk = channelRow.rows[0].settings?.access_token || null;
+        const confirmMsg = kwIntent.intent === 'cancel'
+          ? 'Entendi! Vou te conectar com um de nossos atendentes para resolver isso. Um momento! 🙏'
+          : kwIntent.intent === 'payment'
+          ? 'Claro! Vou te transferir para nossa equipe financeira agora. Aguarde um instante! 💳'
+          : 'Certo! Já estou te conectando com um atendente humano. Um momento! 👤';
+        await whatsappService.sendText(ph, from, confirmMsg, tk);
+        await conversationService.saveMessage({
+          conversationId: conversation.id, tenantId, direction: 'outbound',
+          type: 'text', content: confirmMsg, providerId: null,
+        });
+      }
+
+      return { ok: true, intent: kwIntent.intent, handoff: true };
+    }
+
+    // Intent 'promotion': passa flag para o runtime injetar contexto no prompt
+    if (kwIntent?.intent === 'promotion') {
+      console.log(`[KeywordRouter] Intent "promotion" detectado — injetando contexto no agente`);
+      saved.promotionHint = true;
+    }
+  }
+
   // 6. Agent Runtime — gera resposta com Claude
   const reply = await agentRuntime.run(tenantId, conversation.id, contact, saved);
 

@@ -63,6 +63,45 @@ async function runMigrations() {
     // Follow-up automático de leads frios
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS last_follow_up_at TIMESTAMPTZ`,
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS follow_up_count INTEGER NOT NULL DEFAULT 0`,
+
+    // Feature 1 — Follow-up automático de conversas inativas
+    `ALTER TABLE conversations ADD COLUMN IF NOT EXISTS followup_sent_at TIMESTAMPTZ`,
+
+    // Feature 4 — Campanhas ativas
+    `CREATE TABLE IF NOT EXISTS campaigns (
+      id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      tenant_id        UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      name             TEXT NOT NULL,
+      message_template TEXT NOT NULL,
+      status           TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','scheduled','running','completed','failed')),
+      scheduled_at     TIMESTAMPTZ,
+      sent_count       INTEGER NOT NULL DEFAULT 0,
+      failed_count     INTEGER NOT NULL DEFAULT 0,
+      created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+    `CREATE TABLE IF NOT EXISTS campaign_contacts (
+      id             UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      campaign_id    UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+      contact_phone  TEXT NOT NULL,
+      contact_name   TEXT,
+      status         TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','sent','failed')),
+      sent_at        TIMESTAMPTZ,
+      UNIQUE(campaign_id, contact_phone)
+    )`,
+
+    // Feature 5 — Fila de recompra (reactivation)
+    `CREATE TABLE IF NOT EXISTS reactivation_queue (
+      id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      contact_id      UUID NOT NULL REFERENCES contacts(id),
+      conversation_id UUID REFERENCES conversations(id),
+      scheduled_for   TIMESTAMPTZ NOT NULL,
+      status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','sent','cancelled')),
+      message         TEXT NOT NULL,
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
   ];
   for (const sql of migrations) {
     try { await query(sql); } catch (err) { console.warn('Migration skipped:', err.message); }
@@ -107,6 +146,32 @@ runMigrations().then(() => {
       console.log('✅ Cron de lembretes de agendamento ativo (a cada hora)');
     } catch (err) {
       console.warn('⚠️  Cron de lembretes não iniciado:', err.message);
+    }
+
+    // Feature 1 — Cron: follow-up de conversas inativas (a cada 30 minutos)
+    try {
+      const cron = require('node-cron');
+      const { runConversationFollowUpCycle } = require('./services/followup.service');
+      cron.schedule('*/30 * * * *', async () => {
+        try { await runConversationFollowUpCycle(); }
+        catch (err) { console.error('[ConvFollowUp] Erro no cron:', err.message); }
+      });
+      console.log('✅ Cron de follow-up de conversas ativo (a cada 30 minutos)');
+    } catch (err) {
+      console.warn('⚠️  Cron de follow-up de conversas não iniciado:', err.message);
+    }
+
+    // Feature 5 — Cron: reativações de recompra (diariamente às 10h)
+    try {
+      const cron = require('node-cron');
+      const { processReactivations } = require('./services/reactivation.service');
+      cron.schedule('0 10 * * *', async () => {
+        try { await processReactivations(); }
+        catch (err) { console.error('[Reactivation] Erro no cron:', err.message); }
+      });
+      console.log('✅ Cron de reativações de recompra ativo (diariamente às 10h)');
+    } catch (err) {
+      console.warn('⚠️  Cron de reativações não iniciado:', err.message);
     }
   });
 });
