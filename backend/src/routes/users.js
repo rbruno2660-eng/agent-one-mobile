@@ -53,6 +53,30 @@ router.post('/', requireRole('admin'), async (req, res) => {
   }
 });
 
+// DELETE /users/:id — não pode deletar owner nem a si mesmo
+router.delete('/:id', requireRole('admin'), async (req, res) => {
+  try {
+    if (req.params.id === req.user.id) {
+      return res.status(400).json({ error: 'Você não pode excluir sua própria conta' });
+    }
+    // Verifica se é owner
+    const check = await query(
+      `SELECT role FROM users WHERE id = $1 AND tenant_id = $2`,
+      [req.params.id, req.tenantId]
+    );
+    if (!check.rows.length) return res.status(404).json({ error: 'Usuário não encontrado' });
+    if (check.rows[0].role === 'owner') return res.status(403).json({ error: 'Não é possível excluir o proprietário' });
+
+    await query(
+      `DELETE FROM users WHERE id = $1 AND tenant_id = $2`,
+      [req.params.id, req.tenantId]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao excluir usuário' });
+  }
+});
+
 // PATCH /users/:id
 router.patch('/:id', requireRole('admin'), async (req, res) => {
   try {

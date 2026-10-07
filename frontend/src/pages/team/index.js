@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Layout from '../../components/Layout';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
-import { UserPlus, Users, Phone } from 'lucide-react';
+import { UserPlus, Users, Phone, Pencil, Trash2, Check, X } from 'lucide-react';
 
 const ROLES = ['manager', 'seller', 'service', 'viewer'];
 const ROLE_LABELS = {
@@ -11,13 +11,100 @@ const ROLE_LABELS = {
   service: 'Atendimento',
   viewer:  'Visualizador',
   owner:   'Proprietário',
+  admin:   'Admin',
+};
+
+const roleColor = {
+  owner:   { bg: 'rgba(239,68,68,0.15)',   color: '#f87171' },
+  admin:   { bg: 'rgba(239,68,68,0.12)',   color: '#fca5a5' },
+  manager: { bg: 'rgba(59,130,246,0.15)',  color: '#60a5fa' },
+  seller:  { bg: 'rgba(34,197,94,0.15)',   color: '#4ade80' },
+  service: { bg: 'rgba(245,158,11,0.15)',  color: '#fbbf24' },
+  viewer:  { bg: 'rgba(148,163,184,0.15)', color: '#94a3b8' },
 };
 
 function Field({ label, ...props }) {
   return (
     <div>
       <label className="block text-xs font-medium mb-1" style={{ color: 'var(--muted)' }}>{label}</label>
-      <input {...props} className="w-full px-3 py-2.5 rounded-xl text-sm text-white border outline-none" style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }} />
+      <input {...props} className="w-full px-3 py-2.5 rounded-xl text-sm text-white border outline-none"
+        style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+    </div>
+  );
+}
+
+// Modal de edição inline
+function EditModal({ user, onClose, onSave }) {
+  const [form, setForm] = useState({ name: user.name, role: user.role, status: user.status, phone: user.phone || '' });
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await api.patch(`/users/${user.id}`, {
+        name: form.name,
+        role: form.role,
+        status: form.status,
+        phone: form.phone || null,
+      });
+      toast.success('Usuário atualizado');
+      onSave();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Erro ao atualizar');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }}>
+      <div className="w-full max-w-md rounded-2xl p-6 shadow-2xl" style={{ background: 'var(--bg2)', border: '1px solid var(--border)' }}>
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-sm font-semibold text-white">Editar usuário</h3>
+          <button onClick={onClose} className="p-1 rounded hover:opacity-70" style={{ color: 'var(--muted)' }}>
+            <X size={16} />
+          </button>
+        </div>
+        <div className="space-y-3">
+          <Field label="Nome completo" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
+          <Field label="WhatsApp (com DDI)" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value.replace(/\D/g, '') }))} />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: 'var(--muted)' }}>Função</label>
+              <select value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl text-sm text-white border outline-none"
+                style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
+                disabled={user.role === 'owner'}>
+                {user.role === 'owner'
+                  ? <option value="owner">Proprietário</option>
+                  : ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)
+                }
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: 'var(--muted)' }}>Status</label>
+              <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
+                className="w-full px-3 py-2.5 rounded-xl text-sm text-white border outline-none"
+                style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}
+                disabled={user.role === 'owner'}>
+                <option value="active">Ativo</option>
+                <option value="inactive">Inativo</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-5">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm border text-white transition hover:bg-white/5"
+            style={{ borderColor: 'var(--border)' }}>
+            Cancelar
+          </button>
+          <button onClick={handleSave} disabled={saving}
+            className="px-5 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition"
+            style={{ background: 'var(--primary)' }}>
+            {saving ? 'Salvando...' : 'Salvar'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -28,6 +115,7 @@ export default function TeamPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
 
   function loadUsers() {
     api.get('/users').then(r => setUsers(r.data)).catch(() => {}).finally(() => setLoading(false));
@@ -52,20 +140,36 @@ export default function TeamPage() {
     }
   }
 
-  const roleColor = {
-    manager: { bg: 'rgba(59,130,246,0.15)', color: '#60a5fa' },
-    seller:  { bg: 'rgba(34,197,94,0.15)',  color: '#4ade80' },
-    service: { bg: 'rgba(245,158,11,0.15)', color: '#fbbf24' },
-    viewer:  { bg: 'rgba(148,163,184,0.15)',color: '#94a3b8' },
-  };
+  async function handleDelete(user) {
+    if (!confirm(`Excluir ${user.name}? Esta ação não pode ser desfeita.`)) return;
+    try {
+      await api.delete(`/users/${user.id}`);
+      toast.success('Usuário excluído');
+      loadUsers();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Erro ao excluir');
+    }
+  }
 
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="p-8 max-w-4xl">
+      {editingUser && (
+        <EditModal
+          user={editingUser}
+          onClose={() => setEditingUser(null)}
+          onSave={() => { setEditingUser(null); loadUsers(); }}
+        />
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Users size={20} className="text-blue-400" />
           <h1 className="text-xl font-bold text-white">Cadastro de Usuários</h1>
-          {!loading && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--bg2)', color: 'var(--muted)', border: '1px solid var(--border)' }}>{users.length} membros</span>}
+          {!loading && (
+            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--bg2)', color: 'var(--muted)', border: '1px solid var(--border)' }}>
+              {users.length} membros
+            </span>
+          )}
         </div>
         <button onClick={() => setShowForm(v => !v)}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition"
@@ -110,17 +214,17 @@ export default function TeamPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b" style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
-              {['Nome', 'E-mail', 'WhatsApp', 'Função', 'Status'].map(h => (
+              {['Nome', 'E-mail', 'WhatsApp', 'Função', 'Status', 'Ações'].map(h => (
                 <th key={h} className="text-left px-4 py-3 text-xs font-medium" style={{ color: 'var(--muted)' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading && (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-xs" style={{ color: 'var(--muted)' }}>Carregando...</td></tr>
+              <tr><td colSpan={6} className="px-4 py-10 text-center text-xs" style={{ color: 'var(--muted)' }}>Carregando...</td></tr>
             )}
             {!loading && users.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-xs" style={{ color: 'var(--muted)' }}>Nenhum membro ainda</td></tr>
+              <tr><td colSpan={6} className="px-4 py-10 text-center text-xs" style={{ color: 'var(--muted)' }}>Nenhum membro ainda</td></tr>
             )}
             {users.map(u => (
               <tr key={u.id} className="border-b hover:bg-white/[0.02] transition" style={{ borderColor: 'var(--border)' }}>
@@ -138,10 +242,32 @@ export default function TeamPage() {
                   </span>
                 </td>
                 <td className="px-4 py-3">
-                  <span className="flex items-center gap-1.5 text-xs" style={{ color: u.active ? '#4ade80' : '#f87171' }}>
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: u.active ? '#4ade80' : '#f87171' }} />
-                    {u.active ? 'Ativo' : 'Inativo'}
+                  <span className="flex items-center gap-1.5 text-xs" style={{ color: u.status === 'active' ? '#4ade80' : '#f87171' }}>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: u.status === 'active' ? '#4ade80' : '#f87171' }} />
+                    {u.status === 'active' ? 'Ativo' : 'Inativo'}
                   </span>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setEditingUser(u)}
+                      className="p-1.5 rounded-lg transition hover:bg-blue-500/10"
+                      style={{ color: '#60a5fa' }}
+                      title="Editar usuário"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                    {u.role !== 'owner' && (
+                      <button
+                        onClick={() => handleDelete(u)}
+                        className="p-1.5 rounded-lg transition hover:bg-red-500/10"
+                        style={{ color: '#f87171' }}
+                        title="Excluir usuário"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
