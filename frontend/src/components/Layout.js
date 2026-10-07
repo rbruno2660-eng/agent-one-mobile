@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import {
   LayoutDashboard, MessageSquare, Package, BarChart2,
-  Users, Settings, LogOut, Wrench, TrendingUp, BookOpen, RefreshCcw, Menu, X, Headphones, Bot, Kanban
+  Users, Settings, LogOut, Wrench, TrendingUp, BookOpen, RefreshCcw, Menu, X, Headphones, Bot, Kanban,
+  Megaphone, RotateCcw
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -14,6 +15,8 @@ const navItems = [
   { href: '/catalog',            label: 'Catálogo',     icon: Package },
   { href: '/leads',              label: 'Leads',        icon: TrendingUp },
   { href: '/pipeline',           label: 'Funil',        icon: Kanban },
+  { href: '/campaigns',          label: 'Campanhas',    icon: Megaphone },
+  { href: '/reativacao',         label: 'Reativação',   icon: RotateCcw },
   { href: '/trades',             label: 'Trocas',       icon: RefreshCcw },
   { href: '/services',           label: 'Manutenção',   icon: Wrench },
   { href: '/knowledge',          label: 'Knowledge',    icon: BookOpen },

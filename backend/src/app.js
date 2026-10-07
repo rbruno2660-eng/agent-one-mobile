@@ -8,6 +8,9 @@ const logger = require('./utils/logger');
 
 const app = express();
 
+// Trust Railway's reverse proxy (fixes express-rate-limit X-Forwarded-For warning)
+app.set('trust proxy', 1);
+
 // ─── Segurança e performance ───────────────────
 app.use(helmet());
 app.use(compression());
