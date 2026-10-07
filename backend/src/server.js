@@ -105,6 +105,25 @@ async function runMigrations() {
 
     // Feature 6 — Lead value (dashboard comercial)
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS value NUMERIC(12,2) DEFAULT 0`,
+
+    // Feature 7 — AI Execution Log (observabilidade por chamada)
+    `CREATE TABLE IF NOT EXISTS ai_logs (
+      id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      conversation_id UUID REFERENCES conversations(id) ON DELETE SET NULL,
+      intent          TEXT,
+      model           TEXT NOT NULL DEFAULT 'gpt-4o-mini',
+      prompt_tokens   INTEGER NOT NULL DEFAULT 0,
+      completion_tokens INTEGER NOT NULL DEFAULT 0,
+      total_tokens    INTEGER NOT NULL DEFAULT 0,
+      cost_usd        NUMERIC(10,6) NOT NULL DEFAULT 0,
+      latency_ms      INTEGER,
+      result          TEXT CHECK (result IN ('success','error','fallback')),
+      error_message   TEXT,
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+    `CREATE INDEX IF NOT EXISTS ai_logs_tenant_created ON ai_logs (tenant_id, created_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS ai_logs_conversation ON ai_logs (conversation_id)`,
   ];
   for (const sql of migrations) {
     try { await query(sql); } catch (err) { console.warn('Migration skipped:', err.message); }

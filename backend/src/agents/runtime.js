@@ -4,6 +4,7 @@ const { TOOL_DEFINITIONS } = require('./tools');
 const { executeTool } = require('./tool.executor');
 const { query } = require('../db/pool');
 const aiConfigService = require('../services/ai-config.service');
+const { logAICall } = require('../services/ai-log.service');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -59,60 +60,118 @@ async function run(tenantId, conversationId, contact, inboundMessage) {
   // 4. Agentic loop com tools
   let iterations = 0;
   let currentMessages = [...messages];
+  const MODEL = 'claude-haiku-4-5-20251001';
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  const loopStart = Date.now();
+  let detectedIntent = inboundMessage?.metadata?.intent || null;
 
-  while (iterations < MAX_TOOL_ITERATIONS) {
-    iterations++;
+  try {
+    while (iterations < MAX_TOOL_ITERATIONS) {
+      iterations++;
 
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',   // rápido e barato para WhatsApp
-      max_tokens: 1024,
-      system: systemPrompt,
-      tools: TOOL_DEFINITIONS,
-      messages: currentMessages,
-    });
+      const callStart = Date.now();
+      const response = await client.messages.create({
+        model: MODEL,
+        max_tokens: 1024,
+        system: systemPrompt,
+        tools: TOOL_DEFINITIONS,
+        messages: currentMessages,
+      });
+      const callMs = Date.now() - callStart;
 
-    // Adiciona resposta do assistente ao contexto
-    currentMessages.push({ role: 'assistant', content: response.content });
+      // Acumula tokens
+      totalInputTokens  += response.usage?.input_tokens  || 0;
+      totalOutputTokens += response.usage?.output_tokens || 0;
 
-    // Verifica stop_reason
-    if (response.stop_reason === 'end_turn') {
-      // Extrai texto da resposta final
-      const textBlock = response.content.find(b => b.type === 'text');
-      return textBlock?.text || null;
-    }
+      // Adiciona resposta do assistente ao contexto
+      currentMessages.push({ role: 'assistant', content: response.content });
 
-    if (response.stop_reason === 'tool_use') {
-      // Executa todas as tools chamadas neste turno
-      const toolResults = [];
+      // Verifica stop_reason
+      if (response.stop_reason === 'end_turn') {
+        const textBlock = response.content.find(b => b.type === 'text');
+        const text = textBlock?.text || null;
 
-      for (const block of response.content) {
-        if (block.type !== 'tool_use') continue;
+        // Log de sucesso
+        setImmediate(() => logAICall({
+          tenantId, conversationId,
+          intent: detectedIntent,
+          model: MODEL,
+          promptTokens: totalInputTokens,
+          completionTokens: totalOutputTokens,
+          latencyMs: Date.now() - loopStart,
+          result: 'success',
+        }));
 
-        const context = { tenantId, conversationId, contactId: contact.id };
-        const output = await executeTool(block.name, block.input, context);
-
-        // Se handoff foi acionado, para o loop
-        if (block.name === 'request_handoff' && output?.ok) {
-          return 'Um momento! Estou chamando um de nossos atendentes para continuar o seu atendimento. 😊';
-        }
-
-        toolResults.push({
-          type: 'tool_result',
-          tool_use_id: block.id,
-          content: JSON.stringify(output),
-        });
+        return text;
       }
 
-      // Adiciona resultados das tools ao contexto
-      currentMessages.push({ role: 'user', content: toolResults });
-      continue;
-    }
+      if (response.stop_reason === 'tool_use') {
+        const toolResults = [];
 
-    // max_tokens ou outro stop
-    break;
+        for (const block of response.content) {
+          if (block.type !== 'tool_use') continue;
+
+          const context = { tenantId, conversationId, contactId: contact.id };
+          const output = await executeTool(block.name, block.input, context);
+
+          // Captura intent se veio de tool
+          if (block.name === 'qualify_lead' && block.input?.intent) {
+            detectedIntent = block.input.intent;
+          }
+
+          if (block.name === 'request_handoff' && output?.ok) {
+            setImmediate(() => logAICall({
+              tenantId, conversationId,
+              intent: 'handoff',
+              model: MODEL,
+              promptTokens: totalInputTokens,
+              completionTokens: totalOutputTokens,
+              latencyMs: Date.now() - loopStart,
+              result: 'success',
+            }));
+            return 'Um momento! Estou chamando um de nossos atendentes para continuar o seu atendimento. 😊';
+          }
+
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify(output),
+          });
+        }
+
+        currentMessages.push({ role: 'user', content: toolResults });
+        continue;
+      }
+
+      // max_tokens ou outro stop — fallback
+      break;
+    }
+  } catch (err) {
+    // Log de erro
+    setImmediate(() => logAICall({
+      tenantId, conversationId,
+      intent: detectedIntent,
+      model: MODEL,
+      promptTokens: totalInputTokens,
+      completionTokens: totalOutputTokens,
+      latencyMs: Date.now() - loopStart,
+      result: 'error',
+      errorMessage: err.message,
+    }));
+    throw err;
   }
 
   // Fallback se loop terminar sem resposta
+  setImmediate(() => logAICall({
+    tenantId, conversationId,
+    intent: detectedIntent,
+    model: MODEL,
+    promptTokens: totalInputTokens,
+    completionTokens: totalOutputTokens,
+    latencyMs: Date.now() - loopStart,
+    result: 'fallback',
+  }));
   return 'Desculpe, tive uma dificuldade ao processar. Um atendente irá te ajudar em instantes.';
 }
 

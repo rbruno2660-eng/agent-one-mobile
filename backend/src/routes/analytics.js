@@ -345,4 +345,87 @@ router.get('/comercial', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────
+// GET /analytics/ai-logs — uso e custo de IA por período
+// ─────────────────────────────────────────────────────────────────
+router.get('/ai-logs', async (req, res) => {
+  try {
+    const tid = req.tenantId;
+    const { period = '30' } = req.query;
+    const days = Math.min(parseInt(period) || 30, 365);
+
+    const [summaryResult, dailyResult, intentResult] = await Promise.all([
+      // Resumo geral
+      query(`
+        SELECT
+          COUNT(*)                                       AS total_calls,
+          SUM(total_tokens)                              AS total_tokens,
+          ROUND(SUM(cost_usd)::numeric, 4)               AS total_cost_usd,
+          ROUND(AVG(latency_ms)::numeric, 0)             AS avg_latency_ms,
+          COUNT(*) FILTER (WHERE result = 'error')       AS errors,
+          COUNT(*) FILTER (WHERE result = 'fallback')    AS fallbacks,
+          COUNT(DISTINCT conversation_id)                AS conversations_served
+        FROM ai_logs
+        WHERE tenant_id = $1
+          AND created_at >= NOW() - ($2 * INTERVAL '1 day')
+      `, [tid, days]),
+
+      // Custo por dia (últimos 14 dias)
+      query(`
+        SELECT
+          DATE(created_at)              AS day,
+          COUNT(*)                      AS calls,
+          SUM(total_tokens)             AS tokens,
+          ROUND(SUM(cost_usd)::numeric, 4) AS cost_usd
+        FROM ai_logs
+        WHERE tenant_id = $1
+          AND created_at >= NOW() - INTERVAL '14 days'
+        GROUP BY DATE(created_at)
+        ORDER BY day
+      `, [tid]),
+
+      // Top intents
+      query(`
+        SELECT
+          COALESCE(intent, 'desconhecido') AS intent,
+          COUNT(*) AS total
+        FROM ai_logs
+        WHERE tenant_id = $1
+          AND created_at >= NOW() - ($2 * INTERVAL '1 day')
+        GROUP BY intent
+        ORDER BY total DESC
+        LIMIT 8
+      `, [tid, days]),
+    ]);
+
+    const summary = summaryResult.rows[0];
+
+    res.json({
+      period: days,
+      summary: {
+        total_calls:          parseInt(summary.total_calls)          || 0,
+        total_tokens:         parseInt(summary.total_tokens)         || 0,
+        total_cost_usd:       parseFloat(summary.total_cost_usd)     || 0,
+        avg_latency_ms:       parseInt(summary.avg_latency_ms)       || 0,
+        errors:               parseInt(summary.errors)               || 0,
+        fallbacks:            parseInt(summary.fallbacks)            || 0,
+        conversations_served: parseInt(summary.conversations_served) || 0,
+      },
+      daily: dailyResult.rows.map(r => ({
+        day:      r.day,
+        calls:    parseInt(r.calls),
+        tokens:   parseInt(r.tokens),
+        cost_usd: parseFloat(r.cost_usd) || 0,
+      })),
+      top_intents: intentResult.rows.map(r => ({
+        intent: r.intent,
+        total:  parseInt(r.total),
+      })),
+    });
+  } catch (err) {
+    console.error('[Analytics/AILogs]', err.message);
+    res.status(500).json({ error: 'Erro ao gerar log de IA' });
+  }
+});
+
 module.exports = router;
