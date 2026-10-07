@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
 import api from '../lib/api';
-import { Activity, Zap, AlertCircle, Clock, MessageSquare, TrendingUp } from 'lucide-react';
+import { Activity, Zap, AlertCircle, Clock, MessageSquare, TrendingUp, FileDown } from 'lucide-react';
 
 function StatCard({ title, value, sub, icon: Icon, color = '#2563eb' }) {
   return (
@@ -62,16 +62,25 @@ export default function ObservabilityPage() {
           <h1 className="text-xl font-bold text-white">Observabilidade de IA</h1>
           <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>Custo, uso e performance do agente</p>
         </div>
-        <select
-          value={period}
-          onChange={e => setPeriod(e.target.value)}
-          className="px-3 py-2 rounded-xl text-sm text-white border outline-none"
-          style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}
-        >
-          <option value="7">Últimos 7 dias</option>
-          <option value="30">Últimos 30 dias</option>
-          <option value="90">Últimos 90 dias</option>
-        </select>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <select
+            value={period}
+            onChange={e => setPeriod(e.target.value)}
+            className="px-3 py-2 rounded-xl text-sm text-white border outline-none"
+            style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}
+          >
+            <option value="7">Últimos 7 dias</option>
+            <option value="30">Últimos 30 dias</option>
+            <option value="90">Últimos 90 dias</option>
+          </select>
+          <button
+            onClick={() => window.open(`/report?period=${period}`, '_blank')}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm border transition hover:bg-white/10"
+            style={{ color: 'var(--muted)', borderColor: 'var(--border)', background: 'var(--bg2)' }}
+          >
+            <FileDown size={14} /> Exportar PDF
+          </button>
+        </div>
       </div>
 
       {loading ? (

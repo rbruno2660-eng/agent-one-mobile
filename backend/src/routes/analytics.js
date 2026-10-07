@@ -428,4 +428,137 @@ router.get('/ai-logs', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────
+// GET /analytics/report — dados completos para relatório PDF
+// ─────────────────────────────────────────────────────────────────
+router.get('/report', async (req, res) => {
+  try {
+    const tid = req.tenantId;
+    const { period = '30' } = req.query;
+    const days = Math.min(parseInt(period) || 30, 365);
+
+    const [
+      convRes, leadsRes, comercialRes, aiRes, topProductsRes, tenantRes,
+    ] = await Promise.all([
+      // Conversas
+      query(`
+        SELECT
+          COUNT(*) AS total,
+          COUNT(*) FILTER (WHERE status = 'closed') AS closed,
+          COUNT(*) FILTER (WHERE status IN ('human_requested','human_active')) AS in_handoff,
+          COUNT(*) FILTER (WHERE status = 'ai_active') AS ai_active
+        FROM conversations
+        WHERE tenant_id = $1
+          AND created_at >= NOW() - ($2 * INTERVAL '1 day')
+      `, [tid, days]),
+
+      // Leads por estágio
+      query(`
+        SELECT stage, COUNT(*) AS total, SUM(value) AS total_value
+        FROM leads
+        WHERE tenant_id = $1
+          AND created_at >= NOW() - ($2 * INTERVAL '1 day')
+        GROUP BY stage
+        ORDER BY total DESC
+      `, [tid, days]),
+
+      // Comercial: receita e conversão
+      query(`
+        SELECT
+          COUNT(*) FILTER (WHERE stage = 'won') AS won,
+          COUNT(*) FILTER (WHERE stage = 'lost') AS lost,
+          COUNT(*) FILTER (WHERE stage NOT IN ('won','lost')) AS active,
+          COALESCE(SUM(value) FILTER (WHERE stage = 'won'), 0) AS receita,
+          COALESCE(AVG(value) FILTER (WHERE stage = 'won' AND value > 0), 0) AS ticket_medio,
+          COALESCE(SUM(value) FILTER (WHERE stage NOT IN ('won','lost')), 0) AS pipeline
+        FROM leads
+        WHERE tenant_id = $1
+          AND created_at >= NOW() - ($2 * INTERVAL '1 day')
+      `, [tid, days]),
+
+      // IA
+      query(`
+        SELECT
+          COUNT(*) AS total_calls,
+          SUM(total_tokens) AS total_tokens,
+          SUM(cost_usd) AS total_cost,
+          AVG(latency_ms) AS avg_latency,
+          COUNT(DISTINCT conversation_id) AS conversations_served
+        FROM ai_logs
+        WHERE tenant_id = $1
+          AND created_at >= NOW() - ($2 * INTERVAL '1 day')
+      `, [tid, days]),
+
+      // Top 5 produtos mais consultados
+      query(`
+        SELECT p.model, p.storage, COUNT(l.id) AS leads_count
+        FROM leads l
+        JOIN products p ON p.id = l.product_id
+        WHERE l.tenant_id = $1
+          AND l.created_at >= NOW() - ($2 * INTERVAL '1 day')
+        GROUP BY p.model, p.storage
+        ORDER BY leads_count DESC
+        LIMIT 5
+      `, [tid, days]),
+
+      // Nome do tenant
+      query(`SELECT name FROM tenants WHERE id = $1`, [tid]),
+    ]);
+
+    const com = comercialRes.rows[0] || {};
+    const ai  = aiRes.rows[0] || {};
+    const conv = convRes.rows[0] || {};
+    const totalLeads = leadsRes.rows.reduce((s, r) => s + parseInt(r.total), 0);
+    const wonCount = parseInt(com.won) || 0;
+    const total = wonCount + (parseInt(com.lost) || 0);
+
+    res.json({
+      tenant:   { name: tenantRes.rows[0]?.name || 'Loja' },
+      period:   days,
+      generated_at: new Date().toISOString(),
+
+      conversations: {
+        total:      parseInt(conv.total)      || 0,
+        closed:     parseInt(conv.closed)     || 0,
+        in_handoff: parseInt(conv.in_handoff) || 0,
+        ai_active:  parseInt(conv.ai_active)  || 0,
+      },
+
+      comercial: {
+        won:         wonCount,
+        lost:        parseInt(com.lost)   || 0,
+        active:      parseInt(com.active) || 0,
+        receita:     parseFloat(com.receita)     || 0,
+        ticket_medio: parseFloat(com.ticket_medio) || 0,
+        pipeline:    parseFloat(com.pipeline)    || 0,
+        conversion_rate: total > 0 ? ((wonCount / total) * 100).toFixed(1) : '0.0',
+        total_leads: totalLeads,
+      },
+
+      ia: {
+        total_calls:          parseInt(ai.total_calls)          || 0,
+        total_tokens:         parseInt(ai.total_tokens)         || 0,
+        total_cost_usd:       parseFloat(ai.total_cost)         || 0,
+        avg_latency_ms:       parseInt(ai.avg_latency)          || 0,
+        conversations_served: parseInt(ai.conversations_served) || 0,
+      },
+
+      leads_by_stage: leadsRes.rows.map(r => ({
+        stage:       r.stage,
+        total:       parseInt(r.total),
+        total_value: parseFloat(r.total_value) || 0,
+      })),
+
+      top_products: topProductsRes.rows.map(r => ({
+        model:       r.model,
+        storage:     r.storage,
+        leads_count: parseInt(r.leads_count),
+      })),
+    });
+  } catch (err) {
+    console.error('[Analytics/Report]', err.message);
+    res.status(500).json({ error: 'Erro ao gerar relatório' });
+  }
+});
+
 module.exports = router;
