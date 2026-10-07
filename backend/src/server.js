@@ -106,6 +106,10 @@ async function runMigrations() {
     // Feature 6 — Lead value (dashboard comercial)
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS value NUMERIC(12,2) DEFAULT 0`,
 
+    // Feature 9 — Catálogo público (slug da loja)
+    `ALTER TABLE tenants ADD COLUMN IF NOT EXISTS slug TEXT UNIQUE`,
+    `UPDATE tenants SET slug = LOWER(REGEXP_REPLACE(name, '[^a-zA-Z0-9]+', '-', 'g')) WHERE slug IS NULL`,
+
     // Feature 7 — Alerta de lead quente (controle de cooldown)
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS last_hot_alert_at TIMESTAMPTZ`,
 
