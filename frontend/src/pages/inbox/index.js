@@ -2,8 +2,121 @@ import { useEffect, useState, useRef } from 'react';
 import Layout from '../../components/Layout';
 import api from '../../lib/api';
 import toast from 'react-hot-toast';
-import { Send, Bot, User, RefreshCw, Trash2 } from 'lucide-react';
+import { Send, Bot, User, RefreshCw, Trash2, ChevronDown, ChevronUp, Zap } from 'lucide-react';
 import clsx from 'clsx';
+
+const STAGE_LABEL = {
+  new: 'Novo', contacted: 'Contatado', qualifying: 'Qualificando',
+  interested: 'Interessado', negotiating: 'Negociando', quoted: 'Proposta',
+  won: 'Ganho', lost: 'Perdido',
+};
+
+function HandoffCard({ conversationId }) {
+  const [summary, setSummary] = useState(null);
+  const [open, setOpen] = useState(true);
+
+  useEffect(() => {
+    setSummary(null);
+    api.get(`/conversations/${conversationId}/handoff-summary`)
+      .then(r => setSummary(r.data))
+      .catch(() => {});
+  }, [conversationId]);
+
+  if (!summary) return null;
+
+  const { lead, handoff, recommended_action } = summary;
+  const temp = lead?.temperature;
+
+  return (
+    <div className="mx-6 mt-4 rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--border)', background: 'var(--bg2)' }}>
+      {/* Header do card */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition"
+      >
+        <div className="flex items-center gap-2">
+          <Zap size={14} color="#f59e0b" />
+          <span className="text-xs font-semibold text-white">Briefing do Vendedor</span>
+          {lead && (
+            <span className="text-xs px-2 py-0.5 rounded-md font-medium" style={{
+              background: temp?.color ? temp.color + '22' : 'var(--bg)',
+              color: temp?.color || 'var(--muted)',
+            }}>
+              {temp?.emoji} {temp?.label} · {lead.score}pts
+            </span>
+          )}
+        </div>
+        {open ? <ChevronUp size={14} style={{ color: 'var(--muted)' }} /> : <ChevronDown size={14} style={{ color: 'var(--muted)' }} />}
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 border-t" style={{ borderColor: 'var(--border)' }}>
+          {/* Grid de info */}
+          <div className="grid grid-cols-2 gap-3 mt-3 lg:grid-cols-4">
+            {lead?.product && (
+              <div className="rounded-xl p-3 border" style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}>
+                <div className="text-xs mb-1" style={{ color: 'var(--muted)' }}>Produto de interesse</div>
+                <div className="text-sm font-medium text-white">{lead.product.model} {lead.product.storage || ''}</div>
+                {lead.product.price && (
+                  <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                    R$ {Number(lead.product.price).toLocaleString('pt-BR')}
+                  </div>
+                )}
+              </div>
+            )}
+            {lead?.stage && (
+              <div className="rounded-xl p-3 border" style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}>
+                <div className="text-xs mb-1" style={{ color: 'var(--muted)' }}>Etapa do funil</div>
+                <div className="text-sm font-medium text-white">{STAGE_LABEL[lead.stage] || lead.stage}</div>
+                {lead.follow_up_count > 0 && (
+                  <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>{lead.follow_up_count} follow-up(s)</div>
+                )}
+              </div>
+            )}
+            {lead?.value > 0 && (
+              <div className="rounded-xl p-3 border" style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}>
+                <div className="text-xs mb-1" style={{ color: 'var(--muted)' }}>Orçamento</div>
+                <div className="text-sm font-medium" style={{ color: '#4ade80' }}>
+                  R$ {Number(lead.value).toLocaleString('pt-BR')}
+                </div>
+              </div>
+            )}
+            {handoff?.reason && (
+              <div className="rounded-xl p-3 border" style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}>
+                <div className="text-xs mb-1" style={{ color: 'var(--muted)' }}>Motivo do handoff</div>
+                <div className="text-sm font-medium text-white truncate">{handoff.reason}</div>
+              </div>
+            )}
+          </div>
+
+          {/* Resumo da IA */}
+          {handoff?.summary && (
+            <div className="mt-3 rounded-xl p-3 border" style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}>
+              <div className="text-xs mb-1" style={{ color: 'var(--muted)' }}>Resumo da IA</div>
+              <p className="text-sm text-white">{handoff.summary}</p>
+            </div>
+          )}
+
+          {/* Ação recomendada */}
+          {recommended_action && (
+            <div className="mt-3 rounded-xl p-3 border" style={{ borderColor: '#f59e0b44', background: 'rgba(245,158,11,0.06)' }}>
+              <div className="text-xs mb-1" style={{ color: '#f59e0b' }}>⚡ Ação recomendada</div>
+              <p className="text-sm font-medium text-white">{recommended_action}</p>
+            </div>
+          )}
+
+          {/* Notas do vendedor */}
+          {lead?.notes && (
+            <div className="mt-3 rounded-xl p-3 border" style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}>
+              <div className="text-xs mb-1" style={{ color: 'var(--muted)' }}>Notas</div>
+              <p className="text-sm text-white">{lead.notes}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const STATUS_LABEL = {
   new: 'Nova',
@@ -232,6 +345,11 @@ export default function InboxPage() {
                 )}
               </div>
             </div>
+
+            {/* Briefing card — visível quando humano assumiu ou está na fila */}
+            {(selected.status === 'human_active' || selected.status === 'human_requested') && (
+              <HandoffCard conversationId={selected.id} />
+            )}
 
             {/* Mensagens */}
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">

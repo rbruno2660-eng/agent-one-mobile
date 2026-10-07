@@ -172,6 +172,117 @@ router.patch('/:id/return-to-ai', requireRole('seller'), async (req, res) => {
   }
 });
 
+// GET /conversations/:id/handoff-summary — briefing card para o vendedor
+router.get('/:id/handoff-summary', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tid = req.tenantId;
+
+    const [convResult, leadResult, handoffResult, messagesResult] = await Promise.all([
+      // Conversa + contato
+      query(`
+        SELECT c.*, ct.name AS contact_name, ct.phone AS contact_phone
+        FROM conversations c
+        JOIN contacts ct ON ct.id = c.contact_id
+        WHERE c.id = $1 AND c.tenant_id = $2
+      `, [id, tid]),
+
+      // Lead mais recente com produto e score
+      query(`
+        SELECT l.*, p.model AS product_model, p.storage AS product_storage, p.current_price
+        FROM leads l
+        LEFT JOIN products p ON p.id = l.product_id
+        WHERE l.conversation_id = $1 AND l.tenant_id = $2
+        ORDER BY l.score DESC, l.created_at DESC
+        LIMIT 1
+      `, [id, tid]),
+
+      // Registro de handoff (motivo + resumo da IA)
+      query(`
+        SELECT * FROM handoffs
+        WHERE conversation_id = $1 AND tenant_id = $2
+        ORDER BY created_at DESC LIMIT 1
+      `, [id, tid]),
+
+      // Últimas 6 mensagens para contexto
+      query(`
+        SELECT direction, content, created_at, metadata
+        FROM messages
+        WHERE conversation_id = $1
+        ORDER BY created_at DESC LIMIT 6
+      `, [id]),
+    ]);
+
+    if (!convResult.rows.length) return res.status(404).json({ error: 'Conversa não encontrada' });
+
+    const conv = convResult.rows[0];
+    const lead = leadResult.rows[0] || null;
+    const handoff = handoffResult.rows[0] || null;
+    const recentMessages = messagesResult.rows.reverse();
+
+    // Deriva temperatura do score
+    function tempFromScore(score, stage) {
+      if (stage === 'won')  return { label: 'Ganho', emoji: '✅', color: '#22c55e' };
+      if (stage === 'lost') return { label: 'Perdido', emoji: '❌', color: '#6b7280' };
+      if (!score)           return { label: 'Frio', emoji: '🧊', color: '#60a5fa' };
+      if (score >= 70)      return { label: 'Quente', emoji: '🔥', color: '#ef4444' };
+      if (score >= 40)      return { label: 'Morno', emoji: '☀️', color: '#f59e0b' };
+      return { label: 'Frio', emoji: '🧊', color: '#60a5fa' };
+    }
+
+    // Ação recomendada baseada no score/stage
+    function recommendedAction(lead) {
+      if (!lead) return 'Entender o que o cliente precisa antes de fazer uma oferta.';
+      const stage = lead.stage;
+      const score = lead.score || 0;
+      if (stage === 'won') return 'Venda fechada — confirmar pagamento e entrega.';
+      if (stage === 'lost') return 'Lead perdido — entender objeção antes de tentar retomar.';
+      if (stage === 'negotiating' || stage === 'quoted') return 'Proposta enviada — resolver objeção de preço ou prazo.';
+      if (stage === 'interested' && score >= 60) return 'Lead quente com produto identificado — fazer oferta concreta agora.';
+      if (stage === 'interested') return 'Cliente interessado — confirmar produto e orçamento antes de oferta.';
+      if (stage === 'qualifying' || stage === 'contacted') return 'Cliente em qualificação — mapear necessidade e produto certo.';
+      return 'Entender o que o cliente precisa antes de fazer uma oferta.';
+    }
+
+    const temperature = lead ? tempFromScore(lead.score, lead.stage) : null;
+
+    res.json({
+      conversation: {
+        id: conv.id,
+        status: conv.status,
+        contact: { name: conv.contact_name, phone: conv.contact_phone },
+        started_at: conv.created_at,
+      },
+      lead: lead ? {
+        id: lead.id,
+        stage: lead.stage,
+        score: lead.score,
+        value: lead.value ? parseFloat(lead.value) : null,
+        notes: lead.notes,
+        follow_up_count: lead.follow_up_count,
+        temperature,
+        product: lead.product_model
+          ? { model: lead.product_model, storage: lead.product_storage, price: lead.current_price ? parseFloat(lead.current_price) : null }
+          : null,
+      } : null,
+      handoff: handoff ? {
+        reason: handoff.reason,
+        summary: handoff.summary,
+        created_at: handoff.created_at,
+      } : null,
+      recent_messages: recentMessages.map(m => ({
+        direction: m.direction,
+        content: m.content,
+        time: m.created_at,
+      })),
+      recommended_action: recommendedAction(lead),
+    });
+  } catch (err) {
+    console.error('[HandoffSummary]', err.message);
+    res.status(500).json({ error: 'Erro ao gerar briefing' });
+  }
+});
+
 // DELETE /conversations/:id — exclui conversa e mensagens (manager+)
 router.delete('/:id', requireRole('manager'), async (req, res) => {
   try {
