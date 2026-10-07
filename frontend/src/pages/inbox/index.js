@@ -23,6 +23,7 @@ const STATUS_COLOR = {
   ai_active: '#2563eb',
   human_requested: '#f59e0b',
   human_active: '#059669',
+  follow_up: '#7c3aed',
   closed: '#374151',
 };
 
@@ -243,9 +244,14 @@ export default function InboxPage() {
                     >
                       {msg.content}
                     </div>
-                    <div className="flex items-center gap-1 mt-1 px-1" style={{ color: 'var(--muted)' }}>
+                    <div className="flex items-center gap-1.5 mt-1 px-1" style={{ color: 'var(--muted)' }}>
                       {msg.direction === 'outbound' ? <Bot size={10} /> : <User size={10} />}
                       <span className="text-xs">{new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                      {msg.metadata?.source === 'follow_up' && (
+                        <span className="text-xs px-1.5 py-0.5 rounded font-medium" style={{ background: '#7c3aed22', color: '#a78bfa' }}>
+                          Auto
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

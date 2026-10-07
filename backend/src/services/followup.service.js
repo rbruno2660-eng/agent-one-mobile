@@ -220,11 +220,11 @@ async function sendConversationFollowUp(row) {
   // Envia via WhatsApp
   await whatsappService.sendText(phone_id, contact_phone, message, token);
 
-  // Persiste a mensagem outbound
+  // Persiste a mensagem outbound com metadata identificando origem como follow-up
   await query(
-    `INSERT INTO messages (conversation_id, tenant_id, direction, type, content)
-     VALUES ($1, $2, 'outbound', 'text', $3)`,
-    [conversation_id, tenant_id, message]
+    `INSERT INTO messages (conversation_id, tenant_id, direction, type, content, metadata)
+     VALUES ($1, $2, 'outbound', 'text', $3, $4)`,
+    [conversation_id, tenant_id, message, JSON.stringify({ source: 'follow_up' })]
   );
 
   // Marca followup_sent_at na conversa

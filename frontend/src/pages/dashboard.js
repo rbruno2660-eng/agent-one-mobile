@@ -3,7 +3,7 @@ import Layout from '../components/Layout';
 import { useAuth } from '../hooks/useAuth';
 import { useRouter } from 'next/router';
 import api from '../lib/api';
-import { Package, MessageSquare, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Package, MessageSquare, TrendingUp, AlertTriangle, Zap, Megaphone, RotateCcw } from 'lucide-react';
 
 function StatCard({ title, value, icon: Icon, color = '#2563eb' }) {
   return (
@@ -34,7 +34,9 @@ export default function DashboardPage() {
       api.get('/leads').catch(() => ({ data: [] })),
       api.get('/analytics/overview?period=1').catch(() => ({ data: null })),
       api.get('/analytics/overview?period=365').catch(() => ({ data: null })),
-    ]).then(([products, leads, analyticsToday, analyticsAll]) => {
+      api.get('/campaigns').catch(() => ({ data: [] })),
+      api.get('/reactivation/pending').catch(() => ({ data: [] })),
+    ]).then(([products, leads, analyticsToday, analyticsAll, campaigns, reactivation]) => {
       const outOfStock = (products.data || []).filter(p => (p.available || 0) === 0).length;
       const today = analyticsToday.data;
       const all = analyticsAll.data;
@@ -42,11 +44,21 @@ export default function DashboardPage() {
       const leadsTotal = all?.leads
         ? Object.values(all.leads).reduce((a, b) => a + b, 0)
         : (leads.data || []).length;
+      // Follow-ups: soma follow_up_count de todos os leads
+      const followUps = (leads.data || []).reduce((sum, l) => sum + (l.follow_up_count || 0), 0);
+      // Campanhas ativas (não draft, não cancelled)
+      const activeCampaigns = (campaigns.data || []).filter(c => !['draft', 'cancelled'].includes(c.status)).length;
+      // Reativações pendentes
+      const pendingReactivations = (reactivation.data || []).length;
+
       setStats({
         products: (products.data || []).length,
         leads: leadsTotal,
         out_of_stock: outOfStock,
         conversations_today: today?.conversations?.total ?? 0,
+        follow_ups: followUps,
+        active_campaigns: activeCampaigns,
+        pending_reactivations: pendingReactivations,
       });
     });
   }, []);
@@ -60,11 +72,19 @@ export default function DashboardPage() {
         <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>Aqui está o resumo da sua loja hoje.</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-8">
-        <StatCard title="Produtos ativos" value={stats?.products} icon={Package} color="#2563eb" />
-        <StatCard title="Conversas hoje" value={stats?.conversations_today} icon={MessageSquare} color="#7c3aed" />
-        <StatCard title="Leads" value={stats?.leads} icon={TrendingUp} color="#059669" />
-        <StatCard title="Sem estoque" value={stats?.out_of_stock} icon={AlertTriangle} color="#dc2626" />
+      {/* Linha 1 — métricas principais */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-4">
+        <StatCard title="Produtos ativos"  value={stats?.products}            icon={Package}       color="#2563eb" />
+        <StatCard title="Conversas hoje"   value={stats?.conversations_today} icon={MessageSquare} color="#7c3aed" />
+        <StatCard title="Leads"            value={stats?.leads}               icon={TrendingUp}    color="#059669" />
+        <StatCard title="Sem estoque"      value={stats?.out_of_stock}        icon={AlertTriangle} color="#dc2626" />
+      </div>
+
+      {/* Linha 2 — automações */}
+      <div className="grid grid-cols-3 gap-4 mb-8">
+        <StatCard title="Follow-ups enviados"    value={stats?.follow_ups}            icon={Zap}        color="#f59e0b" />
+        <StatCard title="Campanhas ativas"       value={stats?.active_campaigns}      icon={Megaphone}  color="#ec4899" />
+        <StatCard title="Reativações pendentes"  value={stats?.pending_reactivations} icon={RotateCcw}  color="#34d399" />
       </div>
 
       {/* Atalhos */}
@@ -72,10 +92,12 @@ export default function DashboardPage() {
         <h2 className="text-sm font-semibold text-white mb-4">Ações rápidas</h2>
         <div className="flex gap-3 flex-wrap">
           {[
-            { label: '+ Produto', href: '/catalog/new' },
-            { label: 'Ver Inbox', href: '/inbox' },
-            { label: 'Ver Leads', href: '/leads' },
-            { label: 'Regras de Troca', href: '/trades' },
+            { label: '+ Produto',    href: '/catalog/new' },
+            { label: 'Ver Inbox',    href: '/inbox' },
+            { label: 'Ver Leads',    href: '/leads' },
+            { label: 'Ver Funil',    href: '/pipeline' },
+            { label: 'Campanhas',    href: '/campaigns' },
+            { label: 'Regras Troca', href: '/trades' },
           ].map(({ label, href }) => (
             <button
               key={href}
