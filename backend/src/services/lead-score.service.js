@@ -50,6 +50,9 @@ function calculateScore(lead) {
   // ── Notas (vendedor tomou iniciativa) ───────────────────────────────────────
   if (lead.notes && lead.notes.trim().length > 0) score += 4;
 
+  // ── Valor estimado definido ──────────────────────────────────────────────────
+  if (lead.value && parseFloat(lead.value) > 0) score += 6;
+
   // ── Follow-ups: muitos sem resposta = esfriando ──────────────────────────────
   const fu = lead.follow_up_count || 0;
   if      (fu === 0) score += 3;   // lead fresco, ainda não precisou de follow-up

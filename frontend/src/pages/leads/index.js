@@ -62,6 +62,7 @@ export default function LeadsPage() {
   const [editingId, setEditingId] = useState(null);
   const [editStage, setEditStage] = useState('');
   const [editNotes, setEditNotes] = useState('');
+  const [editValue, setEditValue] = useState('');
 
   async function fetchLeads() {
     const params = stage ? `?stage=${stage}` : '';
@@ -79,17 +80,23 @@ export default function LeadsPage() {
     setEditingId(lead.id);
     setEditStage(lead.stage || '');
     setEditNotes(lead.notes || '');
+    setEditValue(lead.value ? String(lead.value) : '');
   }
 
   function cancelEdit() {
     setEditingId(null);
     setEditStage('');
     setEditNotes('');
+    setEditValue('');
   }
 
   async function saveEdit(id) {
     try {
-      await api.patch(`/leads/${id}`, { stage: editStage, notes: editNotes });
+      await api.patch(`/leads/${id}`, {
+        stage: editStage,
+        notes: editNotes,
+        value: editValue ? parseFloat(editValue.replace(',', '.')) : null,
+      });
       toast.success('Lead atualizado');
       cancelEdit();
       fetchLeads();
@@ -184,15 +191,23 @@ export default function LeadsPage() {
                   </td>
                   <td className="px-4 py-3">
                     {isEditing ? (
-                      <div className="flex items-center gap-2">
-                        <input value={editNotes} onChange={e => setEditNotes(e.target.value)} placeholder="Observação..." className="px-2 py-1.5 rounded-lg text-xs border outline-none text-white w-32" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <input value={editValue} onChange={e => setEditValue(e.target.value)} placeholder="Valor R$..." className="px-2 py-1.5 rounded-lg text-xs border outline-none text-white w-24" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
+                        <input value={editNotes} onChange={e => setEditNotes(e.target.value)} placeholder="Observação..." className="px-2 py-1.5 rounded-lg text-xs border outline-none text-white w-28" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }} />
                         <button onClick={() => saveEdit(lead.id)} className="px-2 py-1.5 rounded-lg text-xs text-green-400 border border-green-400/30 hover:bg-green-400/10">✓</button>
                         <button onClick={cancelEdit} className="px-2 py-1.5 rounded-lg text-xs border" style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}>✗</button>
                       </div>
                     ) : (
-                      <button onClick={() => startEdit(lead)} className="px-3 py-1.5 rounded-lg text-xs border hover:border-blue-400/40 hover:text-white transition" style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}>
-                        Editar
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {lead.value > 0 && (
+                          <span className="text-xs font-medium" style={{ color: '#4ade80' }}>
+                            R$ {Number(lead.value).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
+                          </span>
+                        )}
+                        <button onClick={() => startEdit(lead)} className="px-3 py-1.5 rounded-lg text-xs border hover:border-blue-400/40 hover:text-white transition" style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}>
+                          Editar
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>

@@ -38,12 +38,13 @@ router.get('/', async (req, res) => {
 // PATCH /leads/:id
 router.patch('/:id', async (req, res) => {
   try {
-    const { stage, score, notes } = req.body;
+    const { stage, score, notes, value } = req.body;
     const fields = [], values = [];
     let i = 1;
     if (stage !== undefined) { fields.push(`stage = $${i++}`); values.push(stage); }
     if (score !== undefined) { fields.push(`score = $${i++}`); values.push(score); }
     if (notes !== undefined) { fields.push(`notes = $${i++}`); values.push(notes); }
+    if (value !== undefined) { fields.push(`value = $${i++}`); values.push(value || null); }
     if (!fields.length) return res.status(400).json({ error: 'Nenhum campo' });
 
     values.push(req.params.id, req.tenantId);

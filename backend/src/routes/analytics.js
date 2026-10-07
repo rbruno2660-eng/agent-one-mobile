@@ -252,4 +252,97 @@ router.get('/intelligence', async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────
+// GET /analytics/comercial — dashboard de receita e pipeline
+// ─────────────────────────────────────────────────────────────────
+router.get('/comercial', async (req, res) => {
+  try {
+    const tid = req.tenantId;
+    const { period = '30' } = req.query;
+    const days = Math.min(parseInt(period) || 30, 365);
+
+    const [
+      pipelineResult,
+      conversionResult,
+      topLeadsResult,
+    ] = await Promise.all([
+
+      // Pipeline por estágio: contagem e soma de valor estimado
+      query(`
+        SELECT
+          stage,
+          COUNT(*)               AS count,
+          COALESCE(SUM(value), 0) AS pipeline_value,
+          COALESCE(AVG(NULLIF(value,0)), 0) AS avg_value
+        FROM leads
+        WHERE tenant_id = $1
+          AND stage NOT IN ('lost')
+          AND created_at >= NOW() - ($2 * INTERVAL '1 day')
+        GROUP BY stage
+      `, [tid, days]),
+
+      // Conversão: won vs total (exceto lost, para não distorcer)
+      query(`
+        SELECT
+          COUNT(*) FILTER (WHERE stage = 'won')  AS won,
+          COUNT(*) FILTER (WHERE stage = 'lost') AS lost,
+          COUNT(*)                                AS total,
+          COALESCE(SUM(value) FILTER (WHERE stage = 'won'), 0) AS receita_realizada,
+          COALESCE(AVG(NULLIF(value,0)) FILTER (WHERE stage = 'won'), 0) AS ticket_medio
+        FROM leads
+        WHERE tenant_id = $1
+          AND created_at >= NOW() - ($2 * INTERVAL '1 day')
+      `, [tid, days]),
+
+      // Top 5 leads quentes com valor
+      query(`
+        SELECT
+          l.id, l.stage, l.score, l.value,
+          c.name AS contact_name, c.phone AS contact_phone,
+          p.model AS product_model
+        FROM leads l
+        JOIN contacts c ON c.id = l.contact_id
+        LEFT JOIN products p ON p.id = l.product_id
+        WHERE l.tenant_id = $1
+          AND l.stage NOT IN ('won','lost')
+          AND l.score >= 40
+        ORDER BY l.score DESC, l.value DESC NULLS LAST
+        LIMIT 5
+      `, [tid]),
+    ]);
+
+    const conv = conversionResult.rows[0];
+    const totalLeads = parseInt(conv.total) || 0;
+    const wonLeads   = parseInt(conv.won)   || 0;
+    const conversionRate = totalLeads > 0 ? Math.round((wonLeads / totalLeads) * 100) : 0;
+
+    // Soma o pipeline total (todos os estágios ativos)
+    const pipeline = pipelineResult.rows.reduce((acc, r) => {
+      acc[r.stage] = {
+        count: parseInt(r.count),
+        value: parseFloat(r.pipeline_value),
+        avg: parseFloat(r.avg_value),
+      };
+      return acc;
+    }, {});
+
+    const pipelineTotal = pipelineResult.rows
+      .reduce((sum, r) => sum + parseFloat(r.pipeline_value), 0);
+
+    res.json({
+      period: days,
+      pipeline,
+      pipeline_total: pipelineTotal,
+      receita_realizada: parseFloat(conv.receita_realizada) || 0,
+      ticket_medio: parseFloat(conv.ticket_medio) || 0,
+      conversion_rate: conversionRate,
+      leads: { total: totalLeads, won: wonLeads, lost: parseInt(conv.lost) || 0 },
+      hot_leads: topLeadsResult.rows,
+    });
+  } catch (err) {
+    console.error('[Analytics/Comercial]', err.message);
+    res.status(500).json({ error: 'Erro ao gerar métricas comerciais' });
+  }
+});
+
 module.exports = router;
