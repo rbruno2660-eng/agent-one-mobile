@@ -13,6 +13,7 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const { query } = require('../db/pool');
 const whatsappService = require('./whatsapp.service');
+const { rescoreLead } = require('./lead-score.service');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const MAX_FOLLOW_UPS = 3; // máximo de follow-ups por lead
@@ -146,6 +147,16 @@ async function sendFollowUp(phoneId, lead) {
      WHERE id = $1`,
     [lead.id]
   );
+
+  // Recalcula score após follow-up (mais follow-ups = esfriando)
+  try {
+    const tenantResult = await query(`SELECT tenant_id FROM leads WHERE id = $1`, [lead.id]);
+    if (tenantResult.rows.length) {
+      await rescoreLead(query, lead.id, tenantResult.rows[0].tenant_id);
+    }
+  } catch (err) {
+    console.warn(`[FollowUp] Não foi possível recalcular score do lead ${lead.id}:`, err.message);
+  }
 
   console.log(`[FollowUp] ✓ ${lead.contact_name} — ${productInfo} (follow-up ${followUpNumber}/${MAX_FOLLOW_UPS})`);
 }

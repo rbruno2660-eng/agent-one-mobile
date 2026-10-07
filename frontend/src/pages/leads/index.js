@@ -23,17 +23,34 @@ const STAGE_COLOR = {
   lost: { bg: '#2d1515', text: '#f87171' },
 };
 
-function ScoreBadge({ score }) {
+const TEMP_CONFIG = {
+  hot:  { emoji: '🔥', label: 'Quente', color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
+  warm: { emoji: '☀️',  label: 'Morno',  color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+  cold: { emoji: '🧊', label: 'Frio',   color: '#60a5fa', bg: 'rgba(96,165,250,0.12)' },
+  won:  { emoji: '✅', label: 'Ganho',  color: '#22c55e', bg: 'rgba(34,197,94,0.12)' },
+  lost: { emoji: '❌', label: 'Perdido',color: '#6b7280', bg: 'rgba(107,114,128,0.12)' },
+};
+
+function ScoreBadge({ score, temperature }) {
   const s = score ?? 0;
-  const color = s >= 80 ? '#22c55e' : s >= 50 ? '#f59e0b' : '#6b7280';
+  const color = s >= 70 ? '#22c55e' : s >= 40 ? '#f59e0b' : '#6b7280';
+  const temp = TEMP_CONFIG[temperature] || TEMP_CONFIG.cold;
   return (
-    <div className="relative w-10 h-10 flex-shrink-0">
-      <svg viewBox="0 0 36 36" className="w-10 h-10 -rotate-90">
-        <circle cx="18" cy="18" r="15" fill="none" stroke="#1f2937" strokeWidth="3" />
-        <circle cx="18" cy="18" r="15" fill="none" stroke={color} strokeWidth="3"
-          strokeDasharray={`${(s / 100) * 94.2} 94.2`} strokeLinecap="round" />
-      </svg>
-      <span className="absolute inset-0 flex items-center justify-center text-xs font-bold" style={{ color }}>{s}</span>
+    <div className="flex items-center gap-2">
+      <div className="relative w-10 h-10 flex-shrink-0">
+        <svg viewBox="0 0 36 36" className="w-10 h-10 -rotate-90">
+          <circle cx="18" cy="18" r="15" fill="none" stroke="#1f2937" strokeWidth="3" />
+          <circle cx="18" cy="18" r="15" fill="none" stroke={color} strokeWidth="3"
+            strokeDasharray={`${(s / 100) * 94.2} 94.2`} strokeLinecap="round" />
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center text-xs font-bold" style={{ color }}>{s}</span>
+      </div>
+      {temperature && (
+        <span className="text-xs px-1.5 py-0.5 rounded-md font-medium flex-shrink-0"
+          style={{ background: temp.bg, color: temp.color }}>
+          {temp.emoji} {temp.label}
+        </span>
+      )}
     </div>
   );
 }
@@ -41,6 +58,7 @@ function ScoreBadge({ score }) {
 export default function LeadsPage() {
   const [leads, setLeads] = useState([]);
   const [stage, setStage] = useState('');
+  const [tempFilter, setTempFilter] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editStage, setEditStage] = useState('');
   const [editNotes, setEditNotes] = useState('');
@@ -50,6 +68,10 @@ export default function LeadsPage() {
     const r = await api.get(`/leads${params}`).catch(() => ({ data: [] }));
     setLeads(r.data);
   }
+
+  const filteredLeads = tempFilter
+    ? leads.filter(l => l.temperature === tempFilter)
+    : leads;
 
   useEffect(() => { fetchLeads(); }, [stage]);
 
@@ -89,6 +111,12 @@ export default function LeadsPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-xl font-bold text-white">Leads</h1>
         <div className="flex items-center gap-2">
+          <select value={tempFilter} onChange={e => setTempFilter(e.target.value)} className="px-3 py-2 rounded-xl text-sm text-white border outline-none" style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
+            <option value="">Todas temperaturas</option>
+            <option value="hot">🔥 Quente</option>
+            <option value="warm">☀️ Morno</option>
+            <option value="cold">🧊 Frio</option>
+          </select>
           <select value={stage} onChange={e => setStage(e.target.value)} className="px-3 py-2 rounded-xl text-sm text-white border outline-none" style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
             {STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
           </select>
@@ -115,19 +143,19 @@ export default function LeadsPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b" style={{ background: 'var(--bg2)', borderColor: 'var(--border)' }}>
-              {['Score', 'Contato', 'Produto de interesse', 'Etapa', 'Atualizado', ''].map(h => (
+              {['Score / Temperatura', 'Contato', 'Produto de interesse', 'Etapa', 'Atualizado', ''].map(h => (
                 <th key={h} className="text-left px-4 py-3 font-medium" style={{ color: 'var(--muted)' }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {leads.map(lead => {
+            {filteredLeads.map(lead => {
               const col = STAGE_COLOR[lead.stage] || { bg: '#1f2937', text: '#6b7280' };
               const isEditing = editingId === lead.id;
               return (
                 <tr key={lead.id} className="border-b hover:bg-white/[0.02] transition" style={{ borderColor: 'var(--border)' }}>
                   <td className="px-4 py-3">
-                    <ScoreBadge score={lead.score} />
+                    <ScoreBadge score={lead.score} temperature={lead.temperature} />
                   </td>
                   <td className="px-4 py-3">
                     <div className="text-white font-medium">{lead.contact_name || lead.contact_phone}</div>
@@ -170,7 +198,7 @@ export default function LeadsPage() {
                 </tr>
               );
             })}
-            {leads.length === 0 && (
+            {filteredLeads.length === 0 && (
               <tr><td colSpan={6} className="px-4 py-12 text-center text-sm" style={{ color: 'var(--muted)' }}>Nenhum lead ainda — eles aparecem aqui conforme o agente qualificar clientes</td></tr>
             )}
           </tbody>

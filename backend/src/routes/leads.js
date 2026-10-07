@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const authMiddleware = require('../middleware/auth');
 const { query } = require('../db/pool');
+const { enrichLeads, rescoreLead } = require('../services/lead-score.service');
 
 router.use(authMiddleware);
 
@@ -26,7 +27,9 @@ router.get('/', async (req, res) => {
       LIMIT 200
     `, values);
 
-    res.json(result.rows);
+    // Enriquece com score live + temperature computados em memória
+    const enriched = enrichLeads(result.rows);
+    res.json(enriched);
   } catch {
     res.status(500).json({ error: 'Erro ao listar leads' });
   }
@@ -38,17 +41,23 @@ router.patch('/:id', async (req, res) => {
     const { stage, score, notes } = req.body;
     const fields = [], values = [];
     let i = 1;
-    if (stage) { fields.push(`stage = $${i++}`); values.push(stage); }
+    if (stage !== undefined) { fields.push(`stage = $${i++}`); values.push(stage); }
     if (score !== undefined) { fields.push(`score = $${i++}`); values.push(score); }
     if (notes !== undefined) { fields.push(`notes = $${i++}`); values.push(notes); }
     if (!fields.length) return res.status(400).json({ error: 'Nenhum campo' });
+
     values.push(req.params.id, req.tenantId);
     const result = await query(
-      `UPDATE leads SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${i++} AND tenant_id = $${i} RETURNING *`,
+      `UPDATE leads SET ${fields.join(', ')}, updated_at = NOW()
+       WHERE id = $${i++} AND tenant_id = $${i} RETURNING *`,
       values
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Lead não encontrado' });
-    res.json(result.rows[0]);
+
+    // Recalcula e persiste score após qualquer mutação
+    const rescored = await rescoreLead(query, req.params.id, req.tenantId);
+
+    res.json({ ...result.rows[0], ...(rescored || {}) });
   } catch {
     res.status(500).json({ error: 'Erro ao atualizar lead' });
   }
