@@ -106,7 +106,10 @@ async function runMigrations() {
     // Feature 6 — Lead value (dashboard comercial)
     `ALTER TABLE leads ADD COLUMN IF NOT EXISTS value NUMERIC(12,2) DEFAULT 0`,
 
-    // Feature 7 — AI Execution Log (observabilidade por chamada)
+    // Feature 7 — Alerta de lead quente (controle de cooldown)
+    `ALTER TABLE leads ADD COLUMN IF NOT EXISTS last_hot_alert_at TIMESTAMPTZ`,
+
+    // Feature 8 — AI Execution Log (observabilidade por chamada)
     `CREATE TABLE IF NOT EXISTS ai_logs (
       id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
       tenant_id       UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -194,6 +197,19 @@ runMigrations().then(() => {
       console.log('✅ Cron de reativações de recompra ativo (diariamente às 10h)');
     } catch (err) {
       console.warn('⚠️  Cron de reativações não iniciado:', err.message);
+    }
+
+    // Feature 7 — Cron: alerta de lead quente sem contato (a cada 2 horas)
+    try {
+      const cron = require('node-cron');
+      const { runHotLeadAlertCycle } = require('./services/hot-lead-alert.service');
+      cron.schedule('0 */2 * * *', async () => {
+        try { await runHotLeadAlertCycle(); }
+        catch (err) { console.error('[HotLeadAlert] Erro no cron:', err.message); }
+      });
+      console.log('✅ Cron de alerta de lead quente ativo (a cada 2 horas)');
+    } catch (err) {
+      console.warn('⚠️  Cron de alerta de lead quente não iniciado:', err.message);
     }
   });
 });
