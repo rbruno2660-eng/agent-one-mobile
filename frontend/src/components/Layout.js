@@ -5,7 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import {
   LayoutDashboard, MessageSquare, Package, BarChart2,
   Users, Settings, LogOut, Wrench, TrendingUp, BookOpen, RefreshCcw, Menu, X, Headphones, Bot, Kanban,
-  Megaphone, RotateCcw, Activity
+  Megaphone, RotateCcw, Activity, Phone
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -13,6 +13,7 @@ const navItems = [
   { href: '/dashboard',          label: 'Dashboard',    icon: LayoutDashboard },
   { href: '/inbox',              label: 'Inbox',        icon: MessageSquare },
   { href: '/catalog',            label: 'Catálogo',     icon: Package },
+  { href: '/contacts',           label: 'Contatos',     icon: Phone },
   { href: '/leads',              label: 'Leads',        icon: TrendingUp },
   { href: '/pipeline',           label: 'Funil',        icon: Kanban },
   { href: '/campaigns',          label: 'Campanhas',    icon: Megaphone },

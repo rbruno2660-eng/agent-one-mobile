@@ -97,6 +97,7 @@ app.use('/pipeline', require('./routes/pipeline'));     // Feature 3 — funil d
 app.use('/campaigns', require('./routes/campaigns'));       // Feature 4 — campanhas ativas
 app.use('/reactivation', require('./routes/reactivation')); // Feature 5 — reativação
 app.use('/public', require('./routes/public'));             // Catálogo público (sem auth)
+app.use('/contacts', require('./routes/contacts'));         // Contatos e timeline
 
 // ─── 404 ───────────────────────────────────────
 app.use((req, res) => {
