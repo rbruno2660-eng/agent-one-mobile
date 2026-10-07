@@ -62,12 +62,33 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// GET /campaigns/:id/contacts — lista contatos da campanha
+router.get('/:id/contacts', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT id, phone, name, status, sent_at, error_message
+       FROM campaign_contacts
+       WHERE campaign_id = $1
+       ORDER BY created_at ASC
+       LIMIT 500`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao listar contatos' });
+  }
+});
+
 // POST /campaigns/:id/contacts — importa lista de contatos
 router.post('/:id/contacts', requireRole('manager'), async (req, res) => {
   try {
-    const { contacts } = req.body; // Array de { phone, name }
+    // Aceita { contacts: [{phone, name}] } ou { phones: ['551199...'] }
+    let contacts = req.body.contacts;
+    if (!contacts && Array.isArray(req.body.phones)) {
+      contacts = req.body.phones.map(p => ({ phone: String(p).trim() }));
+    }
     if (!Array.isArray(contacts) || !contacts.length) {
-      return res.status(400).json({ error: 'contacts deve ser um array não vazio de { phone, name }' });
+      return res.status(400).json({ error: 'Envie contacts:[{phone,name}] ou phones:[...]' });
     }
 
     // Valida que a campanha pertence ao tenant
