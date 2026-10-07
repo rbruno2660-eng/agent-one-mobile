@@ -54,6 +54,7 @@ async function processInbound({ tenantId, phoneId, from, name, message }) {
   const agentRuntime = require('../agents/runtime');
   const { transcribeAudio } = require('../services/transcription.service');
   const { textToSpeech, isTTSEnabled } = require('../services/tts.service');
+  const { notifyNewConversation, notifyHandoffRequested } = require('../services/conversation-notify.service');
 
   // 1. Busca/cria contato
   const contact = await conversationService.findOrCreateContact(tenantId, from, name);
@@ -120,6 +121,8 @@ async function processInbound({ tenantId, phoneId, from, name, message }) {
   // 4. Atualiza status da conversa para ai_active
   if (conversation.status === 'new') {
     await conversationService.updateConversationStatus(conversation.id, tenantId, 'ai_active');
+    // Notifica atendentes sobre nova conversa (fire-and-forget)
+    notifyNewConversation(tenantId, contact, conversation.id, content);
   }
 
   // 5. Se conversa está com humano ativo, não responde automaticamente
@@ -171,6 +174,8 @@ async function processInbound({ tenantId, phoneId, from, name, message }) {
         });
       }
 
+      // Notifica atendentes sobre handoff por keyword (fire-and-forget)
+      notifyHandoffRequested(tenantId, contact, conversation.id, kwIntent.handoffReason);
       return { ok: true, intent: kwIntent.intent, handoff: true };
     }
 
@@ -186,6 +191,11 @@ async function processInbound({ tenantId, phoneId, from, name, message }) {
 
   if (!reply) {
     return { skipped: true, reason: 'handoff_or_closed' };
+  }
+
+  // Se a IA solicitou handoff (reply é a mensagem padrão de handoff), notifica atendentes
+  if (reply === 'Um momento! Estou chamando um de nossos atendentes para continuar o seu atendimento. 😊') {
+    notifyHandoffRequested(tenantId, contact, conversation.id, 'IA solicitou atendimento humano');
   }
 
   // 7. Busca configurações do canal (token + voz ElevenLabs por tenant)
